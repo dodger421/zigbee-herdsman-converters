@@ -1,5 +1,7 @@
+import {Zcl} from "zigbee-herdsman";
 import * as fz from "../converters/fromZigbee";
 import * as tz from "../converters/toZigbee";
+import {repInterval} from "../lib/constants";
 import * as exposes from "../lib/exposes";
 import {logger} from "../lib/logger";
 import * as m from "../lib/modernExtend";
@@ -10,6 +12,29 @@ import {isDummyDevice} from "../lib/utils";
 const NS = "zhc:profalux";
 const e = exposes.presets;
 const ea = exposes.access;
+
+interface Profalux1 {
+    attributes: {
+        /** ID=0x0000 | type=UINT8 | write=true | max=255 */
+        motorCoverType: number;
+    };
+    commands: never;
+    commandResponses: never;
+}
+
+const profaluxExtend = {
+    addManuSpecificProfalux1Cluster: () =>
+        m.deviceAddCustomCluster("manuSpecificProfalux1", {
+            name: "manuSpecificProfalux1",
+            ID: 0xfc21,
+            manufacturerCode: Zcl.ManufacturerCode.PROFALUX,
+            attributes: {
+                motorCoverType: {name: "motorCoverType", ID: 0x0000, type: Zcl.DataType.UINT8, write: true, max: 0xff}, // 0 : rolling shutters (volet), 1 : rolling shutters with tilt (BSO), 2: shade (store)
+            },
+            commands: {},
+            commandsResponse: {},
+        }),
+};
 
 const mLocal = {
     pollBatteryVoltage: (): ModernExtend => {
@@ -60,10 +85,12 @@ export const definitions: DefinitionWithExtend[] = [
             "MOT-C1Z10F\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000",
             "MOT-C1Z20F\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000",
             "MOT-C1Z30F\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000",
+            "MOT-C2Z10",
         ],
         model: "MOT-C1ZxxC/F",
         vendor: "Profalux",
         description: "Cover",
+        extend: [profaluxExtend.addManuSpecificProfalux1Cluster()],
         fromZigbee: [fz.command_cover_close, fz.command_cover_open, fz.cover_position_tilt],
         toZigbee: [tz.cover_state, tz.cover_position_tilt],
         options: [],
@@ -78,7 +105,7 @@ export const definitions: DefinitionWithExtend[] = [
         },
         configure: async (device, coordinatorEndpoint) => {
             const endpoint = device.getEndpoint(2);
-            await endpoint.read("manuSpecificProfalux1", ["motorCoverType"]).catch((e) => {
+            await endpoint.read<"manuSpecificProfalux1", Profalux1>("manuSpecificProfalux1", ["motorCoverType"]).catch((e) => {
                 logger.warning(`Failed to read zigbee attributes: ${e}`, NS);
             });
             const coverType = endpoint.getClusterAttributeValue("manuSpecificProfalux1", "motorCoverType");
@@ -92,6 +119,7 @@ export const definitions: DefinitionWithExtend[] = [
         endpoint: (device) => {
             return {default: 2};
         },
+        whiteLabel: [{model: "MOT-C2Z10", vendor: "Profalux", fingerprint: [{modelID: "MOT-C2Z10"}]}],
     },
     {
         // Identify older covers based on their fingerprint. These do not
@@ -122,7 +150,7 @@ export const definitions: DefinitionWithExtend[] = [
         // Newer remotes. These expose a bunch of things but they are bound to
         // the cover and don't seem to communicate with the coordinator, so
         // nothing is likely to be doable in Z2M.
-        zigbeeModel: ["MAI-ZTP20F", "MAI-ZTP20C"],
+        zigbeeModel: ["MAI-ZTP20F", "MAI-ZTP20C", "MAI-ZTP22C"],
         model: "MAI-ZTP20",
         vendor: "Profalux",
         description: "Cover remote",
@@ -132,6 +160,7 @@ export const definitions: DefinitionWithExtend[] = [
             // Poll battery voltage as reporting doesn't work
             mLocal.pollBatteryVoltage(),
         ],
+        whiteLabel: [{model: "MAI-ZTP22C", vendor: "Profalux", fingerprint: [{modelID: "MAI-ZTP22C"}]}],
     },
     {
         // Newer remotes. These expose a bunch of things but they are bound to
@@ -162,13 +191,20 @@ export const definitions: DefinitionWithExtend[] = [
             },
         ],
         model: "MAI-ZTM20C",
+        zigbeeModel: ["MAI-ZTM20C"],
         vendor: "Profalux",
         description: "Cover remote",
-        extend: [
-            m.battery({voltage: true, voltageToPercentage: {min: 2200, max: 3100}, percentageReporting: false}),
-            m.forcePowerSource({powerSource: "Battery"}),
-            // Poll battery voltage as reporting doesn't work
-            mLocal.pollBatteryVoltage(),
-        ],
+        extend: [m.battery({voltage: true, voltageToPercentage: {min: 2200, max: 3100}, percentageReporting: false})],
+        fromZigbee: [fz.command_cover_close, fz.command_cover_open, fz.command_cover_stop],
+        exposes: [e.action(["up", "down", "stop"])],
+        configure: async (device, coordinatorEndpoint, logger) => {
+            const endpoint1 = device.getEndpoint(1);
+            const endpoint2 = device.getEndpoint(2);
+            // Bind clusters
+            await reporting.bind(endpoint1, coordinatorEndpoint, ["genLevelCtrl"]);
+            await reporting.bind(endpoint2, coordinatorEndpoint, ["genPowerCfg", "closureWindowCovering"]);
+            // Configure battery voltage reporting from endpoint 2
+            await reporting.batteryVoltage(endpoint2, {min: 3600, max: repInterval.MAX, change: 1});
+        },
     },
 ];

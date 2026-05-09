@@ -1,5 +1,15 @@
 import assert from "node:assert";
-
+import type {
+    ThermostatAcLouverPosition,
+    ThermostatControlSequenceOfOperation,
+    ThermostatFanMode,
+    ThermostatProgrammingOperationMode,
+    ThermostatRunningMode,
+    ThermostatRunningState,
+    ThermostatScheduleMode,
+    ThermostatSystemMode,
+} from "./constants";
+import {thermostatSetpointChangeSource} from "./constants";
 import type {Access, LevelConfigFeatures, Range} from "./types";
 import {getLabelFromName} from "./utils";
 
@@ -70,6 +80,8 @@ export class Base {
                 break;
             case "diagnostic":
                 assert(!(this.access & a.SET), "Diagnostic expose must not be settable");
+                break;
+            case undefined:
                 break;
         }
     }
@@ -392,9 +404,7 @@ export class Light extends Base {
             levelConfig = levelConfig.withFeature(
                 new Numeric("on_off_transition_time", access.ALL)
                     .withLabel("ON/OFF transition time")
-                    .withDescription(
-                        "Represents the time taken to move to or from the target level when On of Off commands are received by an On/Off cluster",
-                    ),
+                    .withDescription("Seconds taken to move to or from the target level when On or Off commands are received by an On/Off cluster"),
             );
         }
         if (features.includes("on_transition_time")) {
@@ -403,7 +413,7 @@ export class Light extends Base {
                     .withLabel("ON transition time")
                     .withPreset("disabled", "disabled", "Use on_off_transition_time value")
                     .withDescription(
-                        "Represents the time taken to move the current level from the minimum level to the maximum level when an On command is received",
+                        "Seconds taken to move the current level from the minimum level to the maximum level when an On command is received",
                     ),
             );
         }
@@ -413,7 +423,7 @@ export class Light extends Base {
                     .withLabel("OFF transition time")
                     .withPreset("disabled", "disabled", "Use on_off_transition_time value")
                     .withDescription(
-                        "Represents the time taken to move the current level from the maximum level to the minimum level when an Off command is received",
+                        "Seconds taken to move the current level from the maximum level to the minimum level when an Off command is received",
                     ),
             );
         }
@@ -451,7 +461,6 @@ export class Light extends Base {
     withColorTemp(range: Range) {
         const rangeProvided = range !== undefined;
         if (range === undefined) {
-            // biome-ignore lint/style/noParameterAssign: ignored using `--suppress`
             range = [150, 500];
         }
 
@@ -484,7 +493,6 @@ export class Light extends Base {
 
     withColorTempStartup(range: Range) {
         if (range === undefined) {
-            // biome-ignore lint/style/noParameterAssign: ignored using `--suppress`
             range = [150, 500];
         }
 
@@ -635,7 +643,7 @@ export class Climate extends Base {
         return this;
     }
 
-    withLocalTemperatureCalibration(min = -12.8, max = 12.7, step = 0.1, access = a.ALL) {
+    withLocalTemperatureCalibration(min = -2.5, max = 2.5, step = 0.1, access = a.ALL) {
         // For devices following the ZCL local_temperature_calibration is an int8, so min = -12.8 and max 12.7
         this.addFeature(
             new Numeric("local_temperature_calibration", access)
@@ -648,38 +656,22 @@ export class Climate extends Base {
         return this;
     }
 
-    withSystemMode(modes: string[], access = a.ALL, description = "Mode of this device") {
-        const allowed = ["off", "heat", "cool", "auto", "dry", "fan_only", "sleep", "emergency_heating"];
-        modes.forEach((m) => {
-            assert(allowed.includes(m));
-        });
+    withSystemMode(modes: ThermostatSystemMode[], access = a.ALL, description = "Mode of this device") {
         this.addFeature(new Enum("system_mode", access, modes).withDescription(description));
         return this;
     }
 
-    withRunningState(modes: string[], access = a.STATE_GET) {
-        const allowed = ["idle", "heat", "cool", "fan_only"];
-        modes.forEach((m) => {
-            assert(allowed.includes(m));
-        });
+    withRunningState(modes: ThermostatRunningState[], access = a.STATE_GET) {
         this.addFeature(new Enum("running_state", access, modes).withDescription("The current running state"));
         return this;
     }
 
-    withRunningMode(modes: string[], access = a.STATE_GET) {
-        const allowed = ["off", "cool", "heat"];
-        modes.forEach((m) => {
-            assert(allowed.includes(m));
-        });
+    withRunningMode(modes: ThermostatRunningMode[], access = a.STATE_GET) {
         this.addFeature(new Enum("running_mode", access, modes).withDescription("The current running mode"));
         return this;
     }
 
-    withFanMode(modes: string[], access = a.ALL) {
-        const allowed = ["off", "low", "medium", "high", "on", "auto", "smart"];
-        modes.forEach((m) => {
-            assert(allowed.includes(m));
-        });
+    withFanMode(modes: ThermostatFanMode[], access = a.ALL) {
         this.addFeature(new Enum("fan_mode", access, modes).withDescription("Mode of the fan"));
         return this;
     }
@@ -701,44 +693,48 @@ export class Climate extends Base {
                 .withValueMin(0)
                 .withValueMax(100)
                 .withUnit("%")
-                .withDescription("Position of the valve (= demanded heat) where 0% is fully closed and 100% is fully open"),
+                .withDescription("Position of the valve (= demanded heat) where 0% is fully closed and 100% is fully open")
+                .withAccess(access),
         );
         return this;
     }
 
-    withControlSequenceOfOperation(modes: string[], access = a.STATE) {
-        const allowed = [
-            "cooling_only",
-            "cooling_with_reheat",
-            "heating_only",
-            "heating_with_reheat",
-            "cooling_and_heating_4-pipes",
-            "cooling_and_heating_4-pipes_with_reheat",
-        ];
-        modes.forEach((m) => {
-            assert(allowed.includes(m));
-        });
+    withPiCoolingDemand(access = a.STATE) {
+        this.addFeature(
+            new Numeric("pi_cooling_demand", access)
+                .withLabel("PI cooling demand")
+                .withValueMin(0)
+                .withValueMax(100)
+                .withUnit("%")
+                .withDescription("Position of the valve (= demanded cooling) where 0% is fully closed and 100% is fully open")
+                .withAccess(access),
+        );
+        return this;
+    }
+
+    withControlSequenceOfOperation(modes: ThermostatControlSequenceOfOperation[], access = a.STATE) {
         this.addFeature(new Enum("control_sequence_of_operation", access, modes).withDescription("Operating environment of the thermostat"));
         return this;
     }
 
-    withAcLouverPosition(positions: string[], access = a.ALL) {
-        const allowed = ["fully_open", "fully_closed", "half_open", "quarter_open", "three_quarters_open"];
-        positions.forEach((m) => {
-            assert(allowed.includes(m));
-        });
+    withSetpointChangeSource(access = a.STATE) {
+        this.addFeature(
+            new Enum("setpoint_change_source", access, Object.values(thermostatSetpointChangeSource)).withDescription(
+                "Source of the current setpoint change",
+            ),
+        );
+        return this;
+    }
+
+    withAcLouverPosition(positions: ThermostatAcLouverPosition[], access = a.ALL) {
         this.addFeature(
             new Enum("ac_louver_position", access, positions).withLabel("AC louver position").withDescription("AC louver position of this device"),
         );
         return this;
     }
 
-    withWeeklySchedule(modes: string[], access = a.ALL) {
-        const allowed = ["heat", "cool"];
-        modes.forEach((m) => {
-            assert(allowed.includes(m));
-        });
-
+    /** @deprecated 3.0 - uses wrong casing for some exposes - requires refactoring all weekly schedule logic */
+    withWeeklySchedule(modes: ThermostatScheduleMode[], access = a.ALL) {
         const featureDayOfWeek = new List(
             "dayofweek",
             a.SET,
@@ -873,11 +869,11 @@ export const options = {
             .withFeature(new Numeric("interval", access.SET).withValueMin(0).withUnit("ms").withDescription("Interval duration")),
     no_occupancy_since_true: () =>
         new List("no_occupancy_since", access.SET, new Numeric("time", access.STATE_SET)).withDescription(
-            'Sends a message the last time occupancy (occupancy: true) was detected. When setting this for example to [10, 60] a `{"no_occupancy_since": 10}` will be send after 10 seconds and a `{"no_occupancy_since": 60}` after 60 seconds.',
+            'Sends a message the last time occupancy (occupancy: true) was detected. When setting this for example to [10, 60] a `{"no_occupancy_since": 10}` will be sent after 10 seconds and a `{"no_occupancy_since": 60}` after 60 seconds.',
         ),
     no_occupancy_since_false: () =>
         new List("no_occupancy_since", access.SET, new Numeric("time", access.STATE_SET)).withDescription(
-            'Sends a message after the last time no occupancy (occupancy: false) was detected. When setting this for example to [10, 60] a `{"no_occupancy_since": 10}` will be send after 10 seconds and a `{"no_occupancy_since": 60}` after 60 seconds.',
+            'Sends a message after the last time no occupancy (occupancy: false) was detected. When setting this for example to [10, 60] a `{"no_occupancy_since": 10}` will be sent after 10 seconds and a `{"no_occupancy_since": 60}` after 60 seconds.',
         ),
     presence_timeout: () =>
         new Numeric("presence_timeout", access.SET)
@@ -890,6 +886,7 @@ export const options = {
     transition: () =>
         new Numeric("transition", access.SET)
             .withValueMin(0)
+            .withValueStep(0.1)
             .withDescription(
                 "Controls the transition time (in seconds) of on/off, brightness, color temperature (if applicable) and color (if applicable) changes. Defaults to `0` (no transition).",
             ),
@@ -1253,7 +1250,7 @@ export const presets = {
         new Numeric("power_reactive_phase_c", access.STATE).withUnit("VAR").withDescription("Instantaneous measured reactive power on phase C"),
     presence: () => new Binary("presence", access.STATE, true, false).withDescription("Indicates whether the device detected presence"),
     pressure: () => new Numeric("pressure", access.STATE).withUnit("hPa").withDescription("The measured atmospheric pressure"),
-    programming_operation_mode: (values = ["setpoint", "schedule", "schedule_with_preheat", "eco"]) =>
+    programming_operation_mode: (values: ThermostatProgrammingOperationMode[] = ["setpoint", "schedule", "schedule_with_preheat", "eco"]) =>
         new Enum("programming_operation_mode", access.ALL, values).withDescription(
             "Controls how programming affects the thermostat. Possible values: setpoint (only use specified setpoint), schedule (follow programmed setpoint schedule), schedule_with_preheat (follow programmed setpoint schedule with pre-heating). Changing this value does not clear programmed schedules.",
         ),
@@ -1312,13 +1309,6 @@ export const presets = {
     tilt: () => new Binary("tilt", access.STATE, true, false).withDescription("Indicates whether the device detected tilt"),
     voc: () => new Numeric("voc", access.STATE).withLabel("VOC").withUnit("µg/m³").withDescription("Measured VOC value"),
     voc_index: () => new Numeric("voc_index", access.STATE).withLabel("VOC index").withDescription("VOC index"),
-    pi_heating_demand: () =>
-        new Numeric("pi_heating_demand", access.STATE)
-            .withLabel("PI heating demand")
-            .withValueMin(0)
-            .withValueMax(100)
-            .withUnit("%")
-            .withDescription("Position of the valve (= demanded heat) where 0% is fully closed and 100% is fully open"),
     voltage: () => new Numeric("voltage", access.STATE).withUnit("V").withDescription("Measured electrical potential value"),
     voltage_phase_b: () =>
         new Numeric("voltage_phase_b", access.STATE)
@@ -1331,8 +1321,11 @@ export const presets = {
             .withUnit("V")
             .withDescription("Measured electrical potential value on phase C"),
     water_leak: () => new Binary("water_leak", access.STATE, true, false).withDescription("Indicates whether the device detected a water leak"),
+    // fits one usecase  (leak = true)
+    water: () => new Binary("water", access.STATE, true, false).withDescription("Indicates whether the device detects water"),
+    // fits two usecases (users interprets leak as true or false, depending on device placement)
     pilot_wire_mode: (values = ["comfort", "eco", "frost_protection", "off", "comfort_-1", "comfort_-2"]) =>
-        new Enum("pilot_wire_mode", access.ALL, ["comfort", "eco", "frost_protection", "off", "comfort_-1", "comfort_-2"]).withDescription(
+        new Enum("pilot_wire_mode", access.ALL, values).withDescription(
             "Controls the target temperature of the heater, with respect to the temperature set on that heater. Possible values: comfort (target temperature = heater set temperature) eco (target temperature = heater set temperature - 3.5°C), frost_protection (target temperature = 7 to 8°C), off (heater stops heating), and the less commonly used comfort_-1 (target temperature = heater set temperature - 1°C), comfort_-2 (target temperature = heater set temperature - 2°C),.",
         ),
     rain: () => new Binary("rain", access.STATE, true, false).withDescription("Indicates whether the device detected rainfall"),
@@ -1362,7 +1355,8 @@ export const presets = {
             .withState("window_detection", true, "Enables/disables window detection on the device", access.STATE_SET),
     window_detection_bool: (access: number = a.ALL) =>
         new Binary("window_detection", access, true, false).withDescription("Enables/disables window detection on the device").withCategory("config"),
-    window_open: () => new Binary("window_open", access.STATE, true, false).withDescription("Indicates if window is open").withCategory("diagnostic"),
+    window_open: (access: number = a.STATE) =>
+        new Binary("window_open", access, true, false).withDescription("Indicates if window is open").withCategory("diagnostic"),
     moving: () => new Binary("moving", access.STATE, true, false).withDescription("Indicates if the device is moving"),
     x_axis: () => new Numeric("x_axis", access.STATE).withDescription("Accelerometer X value"),
     y_axis: () => new Numeric("y_axis", access.STATE).withDescription("Accelerometer Y value"),
@@ -1413,9 +1407,9 @@ export {
     eCover as cover,
     eEnum as enum,
     eLight as light,
+    eList as list,
+    eLock as lock,
     eNumeric as numeric,
     eSwitch as switch,
     eText as text,
-    eList as list,
-    eLock as lock,
 };

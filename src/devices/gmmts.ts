@@ -16,7 +16,7 @@ const NS = "zhc:gmmts";
 const ea = exposes.access;
 const e = exposes.presets;
 
-const METER_ID_CLUSTER = "haMeterIdentification"; // 0x0B01
+const METER_ID_CLUSTER = "seMeterIdentification"; // 0x0B01
 const CLUSTER_ELE = "haElectricalMeasurement"; // 0x0B04
 const CLUSTER_MET = "seMetering"; // 0x0702
 const CLUSTER_TIC = "manuSpecificGmmts"; // 0xFF42
@@ -1706,95 +1706,167 @@ const ticmeterDatas: TICMeterData[] = [
     },
 ];
 
+interface TicMeter {
+    attributes: {
+        contractType: string;
+        startEJP: number;
+        refreshRate: number;
+        tomorowColor: string;
+        powerOverrun: number;
+        powerOverrunA: number;
+        powerOverrunB: number;
+        powerOverrunC: number;
+        potentialPresence: number;
+        hcHours: string;
+        motdetat: string;
+        date: number;
+        index1Dist: number;
+        index2Dist: number;
+        index3Dist: number;
+        index4Dist: number;
+        powerMaxYesterday: number;
+        powerMaxYesterday1: number;
+        powerMaxYesterday2: number;
+        powerMaxYesterday3: number;
+        powerInjected: number;
+        powerMaxInjected: number;
+        powerMaxInjectedYesterday: number;
+        injectedLoadN: number;
+        // biome-ignore lint/style/useNamingConvention: ignored using `--suppress`
+        injectedLoadN_1: number;
+        startEJP1: number;
+        stopEJP1: number;
+        startEJP2: number;
+        stopEJP2: number;
+        startEJP3: number;
+        stopEJP3: number;
+        shortMsg: string;
+        ultraShortMsg: string;
+        relays: string;
+        currentIndex: number;
+        currentTarif: string;
+        calendarSupplierDay: number;
+        nextSupplierCalendarDay: number;
+        calendarDay: string;
+        calendarDayPointe: string;
+        elecMode: number;
+        maxContractPower: number;
+        ticMode: number;
+        uptime: number;
+        ticVersion: string;
+        powerMaxTodayTime: number;
+        powerMaxToday1Time: number;
+        powerMaxToday2Time: number;
+        powerMaxToday3Time: number;
+        powerMaxYesterdayTime: number;
+        powerMaxYesterday1Time: number;
+        powerMaxYesterday2Time: number;
+        powerMaxYesterday3Time: number;
+        powerMaxInjectedTime: number;
+        powerMaxInjectedYesterdayTime: number;
+    };
+    commands: {
+        refreshRate: {refreshRate: number};
+        reboot: {seq: number};
+    };
+    commandResponses: {
+        refreshRate: {seq: number};
+    };
+}
+
 const ticmeterCustomCluster = {
+    name: "manuSpecificGmmts",
     ID: 0xff42,
     attributes: {
-        contractType: {ID: 0x0000, type: Zcl.DataType.CHAR_STR},
-        startEJP: {ID: 0x0001, type: Zcl.DataType.UINT16},
-        refreshRate: {ID: 0x0002, type: Zcl.DataType.UINT16},
-        tomorowColor: {ID: 0x0003, type: Zcl.DataType.CHAR_STR},
+        contractType: {name: "contractType", ID: 0x0000, type: Zcl.DataType.CHAR_STR},
+        startEJP: {name: "startEJP", ID: 0x0001, type: Zcl.DataType.UINT16},
+        refreshRate: {name: "refreshRate", ID: 0x0002, type: Zcl.DataType.UINT16},
+        tomorowColor: {name: "tomorowColor", ID: 0x0003, type: Zcl.DataType.CHAR_STR},
         //
-        powerOverrun: {ID: 0x0004, type: Zcl.DataType.UINT16},
-        powerOverrunA: {ID: 0x0005, type: Zcl.DataType.UINT16},
-        powerOverrunB: {ID: 0x0006, type: Zcl.DataType.UINT16},
-        powerOverrunC: {ID: 0x0007, type: Zcl.DataType.UINT16},
+        powerOverrun: {name: "powerOverrun", ID: 0x0004, type: Zcl.DataType.UINT16},
+        powerOverrunA: {name: "powerOverrunA", ID: 0x0005, type: Zcl.DataType.UINT16},
+        powerOverrunB: {name: "powerOverrunB", ID: 0x0006, type: Zcl.DataType.UINT16},
+        powerOverrunC: {name: "powerOverrunC", ID: 0x0007, type: Zcl.DataType.UINT16},
         //
-        potentialPresence: {ID: 0x0008, type: Zcl.DataType.UINT32},
+        potentialPresence: {name: "potentialPresence", ID: 0x0008, type: Zcl.DataType.UINT32},
         //
-        hcHours: {ID: 0x0009, type: Zcl.DataType.CHAR_STR},
-        motdetat: {ID: 0x000a, type: Zcl.DataType.CHAR_STR},
+        hcHours: {name: "hcHours", ID: 0x0009, type: Zcl.DataType.CHAR_STR},
+        motdetat: {name: "motdetat", ID: 0x000a, type: Zcl.DataType.CHAR_STR},
         //
-        date: {ID: 0x000b, type: Zcl.DataType.UINT64},
+        date: {name: "date", ID: 0x000b, type: Zcl.DataType.UINT64},
         //
-        index1Dist: {ID: 0x000e, type: Zcl.DataType.UINT48},
-        index2Dist: {ID: 0x000f, type: Zcl.DataType.UINT48},
-        index3Dist: {ID: 0x0010, type: Zcl.DataType.UINT48},
-        index4Dist: {ID: 0x0011, type: Zcl.DataType.UINT48},
+        index1Dist: {name: "index1Dist", ID: 0x000e, type: Zcl.DataType.UINT48},
+        index2Dist: {name: "index2Dist", ID: 0x000f, type: Zcl.DataType.UINT48},
+        index3Dist: {name: "index3Dist", ID: 0x0010, type: Zcl.DataType.UINT48},
+        index4Dist: {name: "index4Dist", ID: 0x0011, type: Zcl.DataType.UINT48},
         //
-        powerMaxYesterday: {ID: 0x0012, type: Zcl.DataType.UINT16},
-        powerMaxYesterday1: {ID: 0x0013, type: Zcl.DataType.UINT16},
-        powerMaxYesterday2: {ID: 0x0014, type: Zcl.DataType.UINT16},
-        powerMaxYesterday3: {ID: 0x0015, type: Zcl.DataType.UINT16},
+        powerMaxYesterday: {name: "powerMaxYesterday", ID: 0x0012, type: Zcl.DataType.UINT16},
+        powerMaxYesterday1: {name: "powerMaxYesterday1", ID: 0x0013, type: Zcl.DataType.UINT16},
+        powerMaxYesterday2: {name: "powerMaxYesterday2", ID: 0x0014, type: Zcl.DataType.UINT16},
+        powerMaxYesterday3: {name: "powerMaxYesterday3", ID: 0x0015, type: Zcl.DataType.UINT16},
         //
-        powerInjected: {ID: 0x0016, type: Zcl.DataType.UINT32},
-        powerMaxInjected: {ID: 0x0017, type: Zcl.DataType.UINT32},
-        powerMaxInjectedYesterday: {ID: 0x0018, type: Zcl.DataType.UINT32},
+        powerInjected: {name: "powerInjected", ID: 0x0016, type: Zcl.DataType.UINT32},
+        powerMaxInjected: {name: "powerMaxInjected", ID: 0x0017, type: Zcl.DataType.UINT32},
+        powerMaxInjectedYesterday: {name: "powerMaxInjectedYesterday", ID: 0x0018, type: Zcl.DataType.UINT32},
         //
-        injectedLoadN: {ID: 0x0019, type: Zcl.DataType.UINT16},
+        injectedLoadN: {name: "injectedLoadN", ID: 0x0019, type: Zcl.DataType.UINT16},
         // biome-ignore lint/style/useNamingConvention: ignored using `--suppress`
-        injectedLoadN_1: {ID: 0x001a, type: Zcl.DataType.UINT16},
+        injectedLoadN_1: {name: "injectedLoadN_1", ID: 0x001a, type: Zcl.DataType.UINT16},
         //
-        startEJP1: {ID: 0x001c, type: Zcl.DataType.UINT64},
-        stopEJP1: {ID: 0x001d, type: Zcl.DataType.UINT64},
-        startEJP2: {ID: 0x001e, type: Zcl.DataType.UINT64},
-        stopEJP2: {ID: 0x001f, type: Zcl.DataType.UINT64},
-        startEJP3: {ID: 0x0020, type: Zcl.DataType.UINT64},
-        stopEJP3: {ID: 0x0021, type: Zcl.DataType.UINT64},
+        startEJP1: {name: "startEJP1", ID: 0x001c, type: Zcl.DataType.UINT64},
+        stopEJP1: {name: "stopEJP1", ID: 0x001d, type: Zcl.DataType.UINT64},
+        startEJP2: {name: "startEJP2", ID: 0x001e, type: Zcl.DataType.UINT64},
+        stopEJP2: {name: "stopEJP2", ID: 0x001f, type: Zcl.DataType.UINT64},
+        startEJP3: {name: "startEJP3", ID: 0x0020, type: Zcl.DataType.UINT64},
+        stopEJP3: {name: "stopEJP3", ID: 0x0021, type: Zcl.DataType.UINT64},
         //
-        shortMsg: {ID: 0x0022, type: Zcl.DataType.CHAR_STR},
-        ultraShortMsg: {ID: 0x0023, type: Zcl.DataType.CHAR_STR},
+        shortMsg: {name: "shortMsg", ID: 0x0022, type: Zcl.DataType.CHAR_STR},
+        ultraShortMsg: {name: "ultraShortMsg", ID: 0x0023, type: Zcl.DataType.CHAR_STR},
         //
-        relays: {ID: 0x0024, type: Zcl.DataType.CHAR_STR},
+        relays: {name: "relays", ID: 0x0024, type: Zcl.DataType.CHAR_STR},
         //
-        currentIndex: {ID: 0x0025, type: Zcl.DataType.UINT8},
+        currentIndex: {name: "currentIndex", ID: 0x0025, type: Zcl.DataType.UINT8},
         //
-        currentTarif: {ID: 0x0039, type: Zcl.DataType.CHAR_STR},
-        calendarSupplierDay: {ID: 0x0026, type: Zcl.DataType.UINT16},
-        nextSupplierCalendarDay: {ID: 0x0027, type: Zcl.DataType.UINT16},
-        calendarDay: {ID: 0x0028, type: Zcl.DataType.CHAR_STR},
-        calendarDayPointe: {ID: 0x0029, type: Zcl.DataType.CHAR_STR},
+        currentTarif: {name: "currentTarif", ID: 0x0039, type: Zcl.DataType.CHAR_STR},
+        calendarSupplierDay: {name: "calendarSupplierDay", ID: 0x0026, type: Zcl.DataType.UINT16},
+        nextSupplierCalendarDay: {name: "nextSupplierCalendarDay", ID: 0x0027, type: Zcl.DataType.UINT16},
+        calendarDay: {name: "calendarDay", ID: 0x0028, type: Zcl.DataType.CHAR_STR},
+        calendarDayPointe: {name: "calendarDayPointe", ID: 0x0029, type: Zcl.DataType.CHAR_STR},
         //
-        elecMode: {ID: 0x002a, type: Zcl.DataType.UINT8},
-        maxContractPower: {ID: 0x002b, type: Zcl.DataType.UINT16},
-        ticMode: {ID: 0x002c, type: Zcl.DataType.UINT8},
-        uptime: {ID: 0x002d, type: Zcl.DataType.UINT48},
-        ticVersion: {ID: 0x002e, type: Zcl.DataType.CHAR_STR},
+        elecMode: {name: "elecMode", ID: 0x002a, type: Zcl.DataType.UINT8},
+        maxContractPower: {name: "maxContractPower", ID: 0x002b, type: Zcl.DataType.UINT16},
+        ticMode: {name: "ticMode", ID: 0x002c, type: Zcl.DataType.UINT8},
+        uptime: {name: "uptime", ID: 0x002d, type: Zcl.DataType.UINT48},
+        ticVersion: {name: "ticVersion", ID: 0x002e, type: Zcl.DataType.CHAR_STR},
         //
-        powerMaxTodayTime: {ID: 0x002f, type: Zcl.DataType.UINT64},
-        powerMaxToday1Time: {ID: 0x0030, type: Zcl.DataType.UINT64},
-        powerMaxToday2Time: {ID: 0x0031, type: Zcl.DataType.UINT64},
-        powerMaxToday3Time: {ID: 0x0032, type: Zcl.DataType.UINT64},
+        powerMaxTodayTime: {name: "powerMaxTodayTime", ID: 0x002f, type: Zcl.DataType.UINT64},
+        powerMaxToday1Time: {name: "powerMaxToday1Time", ID: 0x0030, type: Zcl.DataType.UINT64},
+        powerMaxToday2Time: {name: "powerMaxToday2Time", ID: 0x0031, type: Zcl.DataType.UINT64},
+        powerMaxToday3Time: {name: "powerMaxToday3Time", ID: 0x0032, type: Zcl.DataType.UINT64},
         //
-        powerMaxYesterdayTime: {ID: 0x0033, type: Zcl.DataType.UINT64},
-        powerMaxYesterday1Time: {ID: 0x0034, type: Zcl.DataType.UINT64},
-        powerMaxYesterday2Time: {ID: 0x0035, type: Zcl.DataType.UINT64},
-        powerMaxYesterday3Time: {ID: 0x0036, type: Zcl.DataType.UINT64},
+        powerMaxYesterdayTime: {name: "powerMaxYesterdayTime", ID: 0x0033, type: Zcl.DataType.UINT64},
+        powerMaxYesterday1Time: {name: "powerMaxYesterday1Time", ID: 0x0034, type: Zcl.DataType.UINT64},
+        powerMaxYesterday2Time: {name: "powerMaxYesterday2Time", ID: 0x0035, type: Zcl.DataType.UINT64},
+        powerMaxYesterday3Time: {name: "powerMaxYesterday3Time", ID: 0x0036, type: Zcl.DataType.UINT64},
         //
-        powerMaxInjectedTime: {ID: 0x0037, type: Zcl.DataType.UINT64},
-        powerMaxInjectedYesterdayTime: {ID: 0x0038, type: Zcl.DataType.UINT64},
+        powerMaxInjectedTime: {name: "powerMaxInjectedTime", ID: 0x0037, type: Zcl.DataType.UINT64},
+        powerMaxInjectedYesterdayTime: {name: "powerMaxInjectedYesterdayTime", ID: 0x0038, type: Zcl.DataType.UINT64},
     },
     commands: {
         refreshRate: {
+            name: "refreshRate",
             ID: 0,
             parameters: [{name: "refreshRate", type: Zcl.DataType.UINT16}],
         },
         reboot: {
+            name: "reboot",
             ID: 1,
             parameters: [{name: "seq", type: Zcl.DataType.UINT16}],
         },
     },
     commandsResponse: {
         refreshRate: {
+            name: "refreshRate",
             ID: 1,
             parameters: [{name: "seq", type: Zcl.DataType.UINT16}],
         },
@@ -1808,43 +1880,45 @@ function toSnakeCase(str: string) {
         .toLowerCase();
 }
 
-function ticmeterConverter(msg: Fz.Message) {
+function ticmeterConverter(msg: Fz.Message<"manuSpecificGmmts", TicMeter, ["attributeReport", "readResponse"]>) {
     const result: KeyValue = {};
-    const keys = Object.keys(msg.data);
-    keys.forEach((key) => {
+
+    for (const key of Object.keys(msg.data)) {
         const found = ticmeterDatas.find((x) => x.attr === key);
         if (found) {
-            // biome-ignore lint/suspicious/noImplicitAnyLet: ignored using `--suppress`
-            let value;
+            let value: string | number | undefined;
             switch (found.type) {
                 case STRING:
-                    if (Buffer.isBuffer(msg.data[key])) {
-                        value = msg.data[key].toString();
+                    if (Buffer.isBuffer(msg.data[key as keyof typeof msg.data & string])) {
+                        value = msg.data[key as keyof typeof msg.data & string].toString();
                     } else {
-                        value = msg.data[key];
+                        value = msg.data[key as keyof typeof msg.data & string];
                     }
                     break;
                 case NUMBER:
                 case NUM_RW:
-                    value = msg.data[key];
+                    value = msg.data[key as keyof typeof msg.data & string];
                     break;
                 case ENUM:
-                    value = found.values[msg.data[key]];
+                    value = found.values[msg.data[key as keyof typeof msg.data & string] as number];
                     break;
                 case TIME:
-                    value = new Date(msg.data[key] * 1000).toLocaleString("fr-FR", {timeZone: "Europe/Paris"});
+                    value = new Date((msg.data[key as keyof typeof msg.data & string] as number) * 1000).toLocaleString("fr-FR", {
+                        timeZone: "Europe/Paris",
+                    });
                     break;
             }
 
             if (found.attr === "uptime") {
-                value = value / 1000; // convert ms to s
+                value = (value as number) / 1000; // convert ms to s
             }
 
             result[toSnakeCase(found.attr)] = value;
         } else {
             logger.warning(`Key not found: ${key}`, "TICMeter");
         }
-    });
+    }
+
     return result;
 }
 
@@ -1873,28 +1947,28 @@ const fzLocal = {
                 globalStore.putValue(msg.device, "contract_type", contractType);
             }
         },
-    } satisfies Fz.Converter,
+    } satisfies Fz.Converter<typeof CLUSTER_TIC, TicMeter, ["attributeReport", "readResponse"]>,
     ticmeter_ha_electrical_measurement: {
         cluster: "haElectricalMeasurement",
         type: ["attributeReport", "readResponse"],
         convert: (model, msg, publish, options, meta) => {
             return ticmeterConverter(msg);
         },
-    } satisfies Fz.Converter,
+    } satisfies Fz.Converter<"haElectricalMeasurement", TicMeter, ["attributeReport", "readResponse"]>,
     ticmeter_cluster_fz: {
         cluster: CLUSTER_TIC,
         type: ["attributeReport", "readResponse"],
         convert: (model, msg, publish, options, meta) => {
             return ticmeterConverter(msg);
         },
-    } satisfies Fz.Converter,
+    } satisfies Fz.Converter<typeof CLUSTER_TIC, TicMeter, ["attributeReport", "readResponse"]>,
     ticmeter_metering: {
         cluster: "seMetering",
         type: ["attributeReport", "readResponse"],
         convert: (model, msg, publish, options, meta) => {
             return ticmeterConverter(msg);
         },
-    } satisfies Fz.Converter,
+    } satisfies Fz.Converter<"seMetering", TicMeter, ["attributeReport", "readResponse"]>,
 };
 
 function genereateTzLocal() {

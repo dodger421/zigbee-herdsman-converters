@@ -26,10 +26,17 @@ const fzLocal = {
                 };
             }
         },
-    } satisfies Fz.Converter,
+    } satisfies Fz.Converter<"lightingColorCtrl", undefined, "raw">,
 };
 
 export const definitions: DefinitionWithExtend[] = [
+    {
+        zigbeeModel: ["94842"],
+        model: "94842",
+        vendor: "Paulmann",
+        description: "Outdoor lighting Zigbee motion detector",
+        extend: [m.light({colorTemp: {range: [153, 370]}})],
+    },
     {
         zigbeeModel: ["501.37"],
         model: "501.37",
@@ -90,7 +97,7 @@ export const definitions: DefinitionWithExtend[] = [
         model: "948.47/29165",
         vendor: "Paulmann",
         description: "RGBW light",
-        extend: [m.light({colorTemp: {range: [153, 454]}, color: {modes: ["xy", "hs"]}})],
+        extend: [m.light({colorTemp: {range: [153, 500]}, color: {modes: ["xy", "hs"]}})],
     },
     {
         zigbeeModel: ["H036-0007"],
@@ -121,11 +128,11 @@ export const definitions: DefinitionWithExtend[] = [
         extend: [m.light()],
     },
     {
-        zigbeeModel: ["500.47"],
+        fingerprint: [{modelID: "500.47"}, {modelID: "RGBW", manufacturerName: "Paulmann Licht GmbH", softwareBuildID: "1400-0001"}],
         model: "500.47",
         vendor: "Paulmann",
-        description: "SmartHome Zigbee MaxLED RGBW controller max. 72W 24V DC",
-        extend: [m.light({colorTemp: {range: undefined}, color: {modes: ["xy", "hs"], applyRedFix: true}})],
+        description: "SmartHome Zigbee MaxLED RGBW controller",
+        extend: [m.light({colorTemp: {range: [153, 370]}, color: {modes: ["xy", "hs"], enhancedHue: true, applyRedFix: true}})],
     },
     {
         zigbeeModel: ["RGBW light", "500.49", "RGBW_light"],
@@ -167,6 +174,7 @@ export const definitions: DefinitionWithExtend[] = [
         extend: [m.light({colorTemp: {range: undefined}})],
     },
     {
+        fingerprint: [{modelID: "CCT", manufacturerName: "Paulmann Licht GmbH", dateCode: "20190515"}],
         zigbeeModel: ["500.46"],
         model: "500.46",
         vendor: "Paulmann",
@@ -179,6 +187,13 @@ export const definitions: DefinitionWithExtend[] = [
         vendor: "Paulmann",
         description: "SmartHome Zigbee LED-Modul Coin 1x6W White",
         extend: [m.light()],
+    },
+    {
+        fingerprint: [{modelID: "RGBW", manufacturerName: "Paulmann Licht GmbH", softwareBuildID: "PIIC413"}],
+        model: "924.70",
+        vendor: "Paulmann",
+        description: "LED RGBW+ Module Recessed Light Zigbee Base Coin Single",
+        extend: [m.light({colorTemp: {range: [153, 370]}, color: {modes: ["xy", "hs"]}})],
     },
     {
         zigbeeModel: ["371000001"],
@@ -228,14 +243,14 @@ export const definitions: DefinitionWithExtend[] = [
         model: "500.45",
         vendor: "Paulmann",
         description: "SmartHome Zigbee Pendulum Light Aptare",
-        extend: [m.light({color: {applyRedFix: true}})],
+        extend: [m.light()],
     },
     {
         zigbeeModel: ["500.48"],
         model: "500.48",
         vendor: "Paulmann",
         description: "SmartHome Zigbee YourLED dim/switch controller max. 60 W",
-        extend: [m.light({color: {applyRedFix: true}})],
+        extend: [m.light()],
     },
     {
         fingerprint: [{manufacturerName: "Paulmann Licht GmbH", modelID: "Dimmable"}],
@@ -283,7 +298,7 @@ export const definitions: DefinitionWithExtend[] = [
         ],
     },
     {
-        zigbeeModel: ["501.40"],
+        zigbeeModel: ["501.40", "50140"],
         model: "501.40",
         vendor: "Paulmann",
         description: "RGB remote control",
@@ -359,5 +374,20 @@ export const definitions: DefinitionWithExtend[] = [
         vendor: "Paulmann",
         description: "Puric pane pendant light 6x6W dimmable",
         extend: [m.light()],
+    },
+    {
+        zigbeeModel: ["98442", "98443"],
+        model: "984.42",
+        vendor: "Paulmann",
+        description: "Azalena Smart Home Zigbee LED Light with motion detection (HF)",
+        extend: [m.light({colorTemp: {range: [153, 370]}})],
+        whiteLabel: [{vendor: "Paulmann", model: "984.43", fingerprint: [{modelID: "98443"}]}],
+    },
+    {
+        zigbeeModel: ["CCT light bulb", "CCT_light_bulb"],
+        model: "50394",
+        vendor: "Paulmann",
+        description: "LED Filament Bulb tuneable white",
+        extend: [m.light({colorTemp: {range: [153, 454]}})],
     },
 ];

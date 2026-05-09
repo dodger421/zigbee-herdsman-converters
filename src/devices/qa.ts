@@ -17,10 +17,11 @@ export const definitions: DefinitionWithExtend[] = [
         vendor: "QA",
         description: "1 channel scene switch",
         extend: [
-            tuya.modernExtend.tuyaMagicPacket(),
+            tuya.clusters.addTuyaGenOnOffCluster(),
             m.deviceEndpoints({endpoints: {l1: 1}}),
+            tuya.modernExtend.tuyaBase(),
             tuya.modernExtend.tuyaOnOff({endpoints: ["l1"], powerOnBehavior2: true, backlightModeOffOn: true}),
-            m.actionEnumLookup<"genOnOff", undefined, "tuyaAction">({
+            m.actionEnumLookup<"genOnOff", tuya.TuyaGenOnOff, ["commandTuyaAction"]>({
                 cluster: "genOnOff",
                 commands: ["commandTuyaAction"],
                 attribute: "value",
@@ -43,10 +44,11 @@ export const definitions: DefinitionWithExtend[] = [
         description: "2 channel scene switch",
         meta: {multiEndpoint: true},
         extend: [
-            tuya.modernExtend.tuyaMagicPacket(),
+            tuya.modernExtend.tuyaBase(),
+            tuya.clusters.addTuyaGenOnOffCluster(),
             m.deviceEndpoints({endpoints: {l1: 1, l2: 2}}),
             tuya.modernExtend.tuyaOnOff({endpoints: ["l1", "l2"], powerOnBehavior2: true, backlightModeOffOn: true}),
-            m.actionEnumLookup<"genOnOff", undefined, "tuyaAction">({
+            m.actionEnumLookup<"genOnOff", tuya.TuyaGenOnOff, ["commandTuyaAction"]>({
                 cluster: "genOnOff",
                 commands: ["commandTuyaAction"],
                 attribute: "value",
@@ -69,10 +71,11 @@ export const definitions: DefinitionWithExtend[] = [
         description: "3 channel scene switch",
         meta: {multiEndpoint: true},
         extend: [
-            tuya.modernExtend.tuyaMagicPacket(),
+            tuya.modernExtend.tuyaBase(),
+            tuya.clusters.addTuyaGenOnOffCluster(),
             m.deviceEndpoints({endpoints: {l1: 1, l2: 2, l3: 3}}),
             tuya.modernExtend.tuyaOnOff({endpoints: ["l1", "l2", "l3"], powerOnBehavior2: true, backlightModeOffOn: true}),
-            m.actionEnumLookup<"genOnOff", undefined, "tuyaAction">({
+            m.actionEnumLookup<"genOnOff", tuya.TuyaGenOnOff, ["commandTuyaAction"]>({
                 cluster: "genOnOff",
                 commands: ["commandTuyaAction"],
                 attribute: "value",
@@ -93,39 +96,39 @@ export const definitions: DefinitionWithExtend[] = [
         model: "QARZ1DC",
         vendor: "QA",
         description: "1 channel switch",
-        extend: [tuya.modernExtend.tuyaMagicPacket(), m.deviceEndpoints({endpoints: {l1: 1}}), tuya.modernExtend.tuyaOnOff({endpoints: ["l1"]})],
+        extend: [m.deviceEndpoints({endpoints: {l1: 1}}), tuya.modernExtend.tuyaBase(), tuya.modernExtend.tuyaOnOff({endpoints: ["l1"]})],
     },
     {
-        fingerprint: tuya.fingerprint("TS0001", ["_TZ3000_gtdswg8k"]),
+        fingerprint: tuya.fingerprint("TS0001", ["_TZ3000_gtdswg8k", "_TZ3000_qh6qjuan"]),
         model: "QARZDC1LR",
         vendor: "QA",
         description: "1 channel long range switch",
         extend: [
-            tuya.modernExtend.tuyaMagicPacket(),
+            tuya.modernExtend.tuyaBase(),
             m.deviceEndpoints({endpoints: {l1: 1}}),
             tuya.modernExtend.tuyaOnOff({endpoints: ["l1"], switchType: true}),
         ],
     },
     {
-        fingerprint: tuya.fingerprint("TS0002", ["_TZ3000_rfjctviq", "_TZ3210_pdnwpnz5"]),
+        fingerprint: tuya.fingerprint("TS0002", ["_TZ3000_rfjctviq", "_TZ3210_pdnwpnz5", "_TZ3210_a2erlvb8", "_TZ3000_yxmafzmd"]),
         model: "QARZ2LR",
         vendor: "QA",
         description: "2 channel long range switch",
         meta: {multiEndpoint: true},
         extend: [
-            tuya.modernExtend.tuyaMagicPacket(),
+            tuya.modernExtend.tuyaBase(),
             m.deviceEndpoints({endpoints: {l1: 1, l2: 2}}),
             tuya.modernExtend.tuyaOnOff({endpoints: ["l1", "l2"], switchType: true}),
         ],
     },
     {
-        fingerprint: tuya.fingerprint("TS0003", ["_TZ3000_zeuulson"]),
+        fingerprint: tuya.fingerprint("TS0003", ["_TZ3000_zeuulson", "_TZ33000_d9yfgzur"]),
         model: "QARZ3LR",
         vendor: "QA",
         description: "3 channel long range switch",
         meta: {multiEndpoint: true},
         extend: [
-            tuya.modernExtend.tuyaMagicPacket(),
+            tuya.modernExtend.tuyaBase(),
             m.deviceEndpoints({endpoints: {l1: 1, l2: 2, l3: 3}}),
             tuya.modernExtend.tuyaOnOff({endpoints: ["l1", "l2", "l3"], switchType: true}),
         ],
@@ -137,7 +140,7 @@ export const definitions: DefinitionWithExtend[] = [
         description: "4 channel long range switch",
         meta: {multiEndpoint: true},
         extend: [
-            tuya.modernExtend.tuyaMagicPacket(),
+            tuya.modernExtend.tuyaBase(),
             m.deviceEndpoints({endpoints: {l1: 1, l2: 2, l3: 3, l4: 4}}),
             tuya.modernExtend.tuyaOnOff({endpoints: ["l1", "l2", "l3", "l4"], switchType: true}),
         ],
@@ -148,7 +151,7 @@ export const definitions: DefinitionWithExtend[] = [
         vendor: "QA",
         description: "1 channel wall switch",
         extend: [
-            tuya.modernExtend.tuyaMagicPacket(),
+            tuya.modernExtend.tuyaBase(),
             m.deviceEndpoints({endpoints: {l1: 1}}),
             tuya.modernExtend.tuyaOnOff({endpoints: ["l1"], backlightModeOffOn: true}),
         ],
@@ -160,7 +163,7 @@ export const definitions: DefinitionWithExtend[] = [
         description: "2 channel wall switch",
         meta: {multiEndpoint: true},
         extend: [
-            tuya.modernExtend.tuyaMagicPacket(),
+            tuya.modernExtend.tuyaBase(),
             m.deviceEndpoints({endpoints: {l1: 1, l2: 2}}),
             tuya.modernExtend.tuyaOnOff({endpoints: ["l1", "l2"], backlightModeOffOn: true}),
         ],
@@ -172,7 +175,7 @@ export const definitions: DefinitionWithExtend[] = [
         description: "3 channel wall switch",
         meta: {multiEndpoint: true},
         extend: [
-            tuya.modernExtend.tuyaMagicPacket(),
+            tuya.modernExtend.tuyaBase(),
             m.deviceEndpoints({endpoints: {left: 1, center: 2, right: 3}}),
             tuya.modernExtend.tuyaOnOff({endpoints: ["left", "center", "right"], backlightModeOffOn: true}),
         ],
@@ -188,7 +191,7 @@ export const definitions: DefinitionWithExtend[] = [
             e.switch().withEndpoint("l3").setAccess("state", ea.STATE_SET),
             e.switch().withEndpoint("l4").setAccess("state", ea.STATE_SET),
         ],
-        fromZigbee: [fz.ignore_basic_report, legacy.fz.tuya_switch],
+        fromZigbee: [legacy.fz.tuya_switch],
         toZigbee: [legacy.tz.tuya_switch_state],
         meta: {multiEndpoint: true},
         endpoint: (device) => {
@@ -217,7 +220,7 @@ export const definitions: DefinitionWithExtend[] = [
             e.switch().withEndpoint("l5").setAccess("state", ea.STATE_SET),
             e.switch().withEndpoint("l6").setAccess("state", ea.STATE_SET),
         ],
-        fromZigbee: [fz.ignore_basic_report, legacy.fz.tuya_switch],
+        fromZigbee: [legacy.fz.tuya_switch],
         toZigbee: [legacy.tz.tuya_switch_state],
         meta: {multiEndpoint: true},
         endpoint: (device) => {
@@ -236,6 +239,46 @@ export const definitions: DefinitionWithExtend[] = [
         },
     },
     {
+        fingerprint: tuya.fingerprint("TS0601", ["_TZE284_ms97nkyy"]),
+        model: "QAT44Z6",
+        vendor: "QA",
+        description: "6 channel scene switch",
+        extend: [tuya.modernExtend.tuyaBase({dp: true})],
+        exposes: [
+            e.switch().withEndpoint("l1"),
+            e.switch().withEndpoint("l2"),
+            e.switch().withEndpoint("l3"),
+            e.switch().withEndpoint("l4"),
+            e.switch().withEndpoint("l5"),
+            e.switch().withEndpoint("l6"),
+            e.action(["scene_1", "scene_2", "scene_3", "scene_4", "scene_5", "scene_6"]),
+            // Backlight brightness control (0-99%)
+            e.numeric("backlight_brightness", ea.ALL).withValueMin(0).withValueMax(99).withDescription("Backlight brightness (0-99)").withUnit("%"),
+        ],
+        meta: {
+            multiEndpoint: true,
+            tuyaDatapoints: [
+                [24, "state_l1", tuya.valueConverter.onOff],
+                [25, "state_l2", tuya.valueConverter.onOff],
+                [26, "state_l3", tuya.valueConverter.onOff],
+                [27, "state_l4", tuya.valueConverter.onOff],
+                [28, "state_l5", tuya.valueConverter.onOff],
+                [29, "state_l6", tuya.valueConverter.onOff],
+                [7, "action", tuya.valueConverter.static("scene_1")],
+                [8, "action", tuya.valueConverter.static("scene_2")],
+                [9, "action", tuya.valueConverter.static("scene_3")],
+                [10, "action", tuya.valueConverter.static("scene_4")],
+                [11, "action", tuya.valueConverter.static("scene_5")],
+                [12, "action", tuya.valueConverter.static("scene_6")],
+                // Backlight brightness datapoint
+                [101, "backlight_brightness", tuya.valueConverter.raw],
+            ],
+        },
+        endpoint: (device) => {
+            return {l1: 1, l2: 1, l3: 1, l4: 1, l5: 1, l6: 1};
+        },
+    },
+    {
         fingerprint: tuya.fingerprint("TS110E", ["_TZ3210_hzdhb62z", "_TZ3210_v5yquxma"]),
         model: "QADZ1",
         vendor: "QA",
@@ -244,7 +287,6 @@ export const definitions: DefinitionWithExtend[] = [
         fromZigbee: [tuya.fz.power_on_behavior_1, fz.TS110E_switch_type, fz.TS110E, fz.on_off],
         toZigbee: [tz.TS110E_light_onoff_brightness, tuya.tz.power_on_behavior_1, tz.TS110E_options],
         exposes: [e.power_on_behavior(), tuya.exposes.switchType()],
-        configure: tuya.configureMagicPacket,
     },
     {
         fingerprint: tuya.fingerprint("TS110E", ["_TZ3210_tkkb1ym8"]),
@@ -260,6 +302,159 @@ export const definitions: DefinitionWithExtend[] = [
         fromZigbee: [tuya.fz.power_on_behavior_1, fz.TS110E_switch_type, fz.TS110E, fz.on_off],
         toZigbee: [tz.TS110E_light_onoff_brightness, tuya.tz.power_on_behavior_1, tz.TS110E_options],
         exposes: [e.power_on_behavior(), tuya.exposes.switchType()],
-        configure: tuya.configureMagicPacket,
+    },
+    {
+        fingerprint: tuya.fingerprint("TS0601", ["_TZE284_nthhgkd6"]),
+        model: "QADZ4DIN",
+        vendor: "QA",
+        description: "4 channel dimmer module",
+        extend: [tuya.modernExtend.tuyaBase({dp: true})],
+        exposes: [
+            tuya.exposes.lightBrightness().withMinBrightness().withEndpoint("l1"),
+            tuya.exposes.lightBrightness().withMinBrightness().withEndpoint("l2"),
+            tuya.exposes.lightBrightness().withMinBrightness().withEndpoint("l3"),
+            tuya.exposes.lightBrightness().withMinBrightness().withEndpoint("l4"),
+            e.enum("switch_type", ea.STATE_SET, ["momentary", "toggle"]).withDescription("Type of the switch").withCategory("config"),
+            e.enum("dimming_speed", ea.STATE_SET, ["slow", "middle", "fast"]).withDescription("Dimming speed").withCategory("config"),
+            e.enum("power_on_behavior", ea.STATE_SET, ["off", "on", "previous"]),
+        ],
+        endpoint: (device) => {
+            return {l1: 1, l2: 1, l3: 1, l4: 1};
+        },
+        meta: {
+            multiEndpoint: true,
+            tuyaDatapoints: [
+                [1, "state_l1", tuya.valueConverter.onOff, {skip: tuya.skip.stateOnAndBrightnessPresent}],
+                [2, "brightness_l1", tuya.valueConverter.scale0_254to0_1000],
+                [3, "min_brightness_l1", tuya.valueConverter.scale0_254to0_1000],
+                [7, "state_l2", tuya.valueConverter.onOff, {skip: tuya.skip.stateOnAndBrightnessPresent}],
+                [8, "brightness_l2", tuya.valueConverter.scale0_254to0_1000],
+                [9, "min_brightness_l2", tuya.valueConverter.scale0_254to0_1000],
+                [14, "power_on_behavior", tuya.valueConverter.powerOnBehaviorEnum],
+                [15, "state_l3", tuya.valueConverter.onOff, {skip: tuya.skip.stateOnAndBrightnessPresent}],
+                [16, "brightness_l3", tuya.valueConverter.scale0_254to0_1000],
+                [17, "min_brightness_l3", tuya.valueConverter.scale0_254to0_1000],
+                [101, "state_l4", tuya.valueConverter.onOff, {skip: tuya.skip.stateOnAndBrightnessPresent}],
+                [102, "brightness_l4", tuya.valueConverter.scale0_254to0_1000],
+                [103, "min_brightness_l4", tuya.valueConverter.scale0_254to0_1000],
+                [105, "dimming_speed", tuya.valueConverterBasic.lookup({slow: new tuya.Enum(0), middle: new tuya.Enum(1), fast: new tuya.Enum(2)})],
+                [106, "switch_type", tuya.valueConverter.switchType],
+            ],
+        },
+    },
+    {
+        fingerprint: tuya.fingerprint("TS0601", ["_TZE284_nzns7udm"]),
+        model: "QAT42Z1B",
+        vendor: "QA",
+        description: "1 channel scene switch",
+        extend: [tuya.modernExtend.tuyaBase({dp: true})],
+        exposes: [
+            e.switch(),
+            e.action(["scene_1"]),
+            e.numeric("backlight_brightness", ea.ALL).withValueMin(0).withValueMax(99).withDescription("Backlight brightness (0-99)").withUnit("%"),
+        ],
+        meta: {
+            tuyaDatapoints: [
+                [24, "state", tuya.valueConverter.onOff],
+                [5, "action", tuya.valueConverter.static("scene_1")],
+                [101, "backlight_brightness", tuya.valueConverter.raw],
+            ],
+        },
+    },
+    {
+        fingerprint: tuya.fingerprint("TS0601", ["_TZE284_1aqlsquf"]),
+        model: "QAT42Z2B",
+        vendor: "QA",
+        description: "2 channel scene switch",
+        extend: [tuya.modernExtend.tuyaBase({dp: true}), m.deviceEndpoints({endpoints: {l1: 1, l2: 1}})],
+        exposes: [
+            e.switch().withEndpoint("l1"),
+            e.switch().withEndpoint("l2"),
+            e.action(["scene_1", "scene_2"]),
+            e.numeric("backlight_brightness", ea.ALL).withValueMin(0).withValueMax(99).withDescription("Backlight brightness (0-99)").withUnit("%"),
+        ],
+        meta: {
+            tuyaDatapoints: [
+                [24, "state_l1", tuya.valueConverter.onOff],
+                [25, "state_l2", tuya.valueConverter.onOff],
+                [5, "action", tuya.valueConverter.static("scene_1")],
+                [6, "action", tuya.valueConverter.static("scene_2")],
+                [101, "backlight_brightness", tuya.valueConverter.raw],
+            ],
+        },
+    },
+    {
+        fingerprint: tuya.fingerprint("TS0601", ["_TZE284_pgxndxp4"]),
+        model: "QAT42Z3B",
+        vendor: "QA",
+        description: "3 channel scene switch",
+        extend: [tuya.modernExtend.tuyaBase({dp: true}), m.deviceEndpoints({endpoints: {l1: 1, l2: 1, l3: 1}})],
+        exposes: [
+            e.switch().withEndpoint("l1"),
+            e.switch().withEndpoint("l2"),
+            e.switch().withEndpoint("l3"),
+            e.action(["scene_1", "scene_2", "scene_3"]),
+            e.numeric("backlight_brightness", ea.ALL).withValueMin(0).withValueMax(99).withDescription("Backlight brightness (0-99)").withUnit("%"),
+        ],
+        meta: {
+            tuyaDatapoints: [
+                [24, "state_l1", tuya.valueConverter.onOff],
+                [25, "state_l2", tuya.valueConverter.onOff],
+                [26, "state_l3", tuya.valueConverter.onOff],
+                [5, "action", tuya.valueConverter.static("scene_1")],
+                [6, "action", tuya.valueConverter.static("scene_2")],
+                [7, "action", tuya.valueConverter.static("scene_3")],
+                [101, "backlight_brightness", tuya.valueConverter.raw],
+            ],
+        },
+    },
+    {
+        fingerprint: tuya.fingerprint("TS0502B", ["_TZ3218_op6ztaju"]),
+        model: "QAFZ200",
+        vendor: "QA",
+        description: "CCT light controller",
+        extend: [tuya.modernExtend.tuyaLight({colorTemp: {range: [153, 500]}, effect: false, doNotDisturb: false})],
+    },
+    {
+        fingerprint: tuya.fingerprint("TS011F", ["_TZ3218_kwht8j5m"]),
+        model: "QASZP",
+        vendor: "QA",
+        description: "Power sensor",
+        fromZigbee: [fz.electrical_measurement, fz.metering],
+        extend: [tuya.modernExtend.tuyaBase({dp: true}), tuya.modernExtend.electricityMeasurementPoll()],
+        exposes: [
+            e.numeric("voltage", ea.STATE).withUnit("V").withDescription("Measured electrical potential value"),
+            e.numeric("current", ea.STATE).withUnit("A").withDescription("Instantaneous measured electrical current"),
+            e.numeric("power", ea.STATE).withUnit("W").withDescription("Instantaneous measured power"),
+            e.numeric("energy", ea.STATE).withUnit("kWh").withDescription("Sum of consumed energy"),
+            e
+                .numeric("reactive_power_threshold", ea.STATE_SET)
+                .withUnit("W")
+                .withValueMin(3)
+                .withValueMax(30)
+                .withValueStep(0.1)
+                .withDescription("Reactive power threshold. Switch turns on when real power exceeds this value"),
+            e
+                .numeric("max_effective_power", ea.STATE_SET)
+                .withUnit("W")
+                .withValueMin(0)
+                .withValueMax(4800)
+                .withDescription("Maximum effective power supported"),
+            e.enum("status_report", ea.STATE_SET, ["ON", "OFF"]).withDescription("Enable threshold monitoring"),
+            e.enum("switch_status", ea.STATE, ["ON", "OFF"]).withDescription("Switch status"),
+        ],
+        meta: {
+            tuyaSendCommand: "sendData",
+            tuyaDatapoints: [
+                [17, "energy", tuya.valueConverter.divideBy1000],
+                [18, "current", tuya.valueConverter.divideBy1000],
+                [19, "power", tuya.valueConverter.divideBy10],
+                [20, "voltage", tuya.valueConverter.divideBy10],
+                [101, "reactive_power_threshold", tuya.valueConverter.divideBy10],
+                [102, "max_effective_power", tuya.valueConverter.divideBy10],
+                [104, "status_report", tuya.valueConverter.onOff],
+                [105, "switch_status", tuya.valueConverter.onOff],
+            ],
+        },
     },
 ];

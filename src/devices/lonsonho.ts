@@ -16,8 +16,9 @@ export const definitions: DefinitionWithExtend[] = [
         model: "QS-Zigbee-C01",
         vendor: "Lonsonho",
         description: "Curtain/blind motor controller",
-        fromZigbee: [fz.cover_position_tilt, fz.tuya_cover_options],
-        toZigbee: [tz.cover_state, tz.cover_position_tilt, tz.moes_cover_calibration, tz.tuya_cover_calibration, tz.tuya_cover_reversal],
+        extend: [tuya.clusters.addTuyaClosuresWindowCoveringCluster()],
+        fromZigbee: [fz.cover_position_tilt, tuya.fz.cover_options],
+        toZigbee: [tz.cover_state, tz.cover_position_tilt, tuya.tz.moes_cover_calibration, tuya.tz.cover_calibration, tuya.tz.cover_reversal],
         meta: {coverInverted: true},
         exposes: [
             e.cover_position(),
@@ -32,8 +33,9 @@ export const definitions: DefinitionWithExtend[] = [
         model: "11830304",
         vendor: "Lonsonho",
         description: "Curtain switch",
-        fromZigbee: [fz.cover_position_tilt, tuya.fz.backlight_mode_low_medium_high, fz.tuya_cover_options],
-        toZigbee: [tz.cover_state, tz.cover_position_tilt, tz.tuya_cover_calibration, tz.tuya_cover_reversal, tuya.tz.backlight_indicator_mode_1],
+        extend: [tuya.clusters.addTuyaClosuresWindowCoveringCluster()],
+        fromZigbee: [fz.cover_position_tilt, tuya.fz.backlight_mode_low_medium_high, tuya.fz.cover_options],
+        toZigbee: [tz.cover_state, tz.cover_position_tilt, tuya.tz.cover_calibration, tuya.tz.cover_reversal, tuya.tz.backlight_indicator_mode_1],
         meta: {coverInverted: true},
         exposes: [
             e.cover_position(),
@@ -56,8 +58,9 @@ export const definitions: DefinitionWithExtend[] = [
         model: "TS130F_dual",
         vendor: "Lonsonho",
         description: "Dual curtain/blind module",
-        fromZigbee: [fz.cover_position_tilt, fz.tuya_cover_options],
-        toZigbee: [tz.cover_state, tz.cover_position_tilt, tz.tuya_cover_calibration, tz.tuya_cover_reversal],
+        extend: [tuya.clusters.addTuyaClosuresWindowCoveringCluster()],
+        fromZigbee: [fz.cover_position_tilt, tuya.fz.cover_options],
+        toZigbee: [tz.cover_state, tz.cover_position_tilt, tuya.tz.cover_calibration, tuya.tz.cover_reversal],
         whiteLabel: [tuya.whitelabel("Girier", "TS130F_GIRIER_DUAL", "Dual smart curtain switch", ["_TZ3000_j1xl73iw"])],
         meta: {multiEndpoint: true, coverInverted: true},
         endpoint: (device) => {
@@ -89,11 +92,11 @@ export const definitions: DefinitionWithExtend[] = [
         ],
     },
     {
-        fingerprint: tuya.fingerprint("TS0001", ["_TZ3000_t3s9qmmg"]),
+        fingerprint: tuya.fingerprint("TS0001", ["_TZ3000_t3s9qmmg", "_TZ3000_ehgouyvu"]),
         model: "X701A",
         vendor: "Lonsonho",
         description: "1 gang switch with backlight",
-        extend: [tuya.modernExtend.tuyaOnOff({indicatorMode: true})],
+        extend: [tuya.modernExtend.tuyaBase(), tuya.modernExtend.tuyaOnOff({indicatorMode: true})],
         configure: async (device, coordinatorEndpoint) => {
             await tuya.configureMagicPacket(device, coordinatorEndpoint);
             await reporting.bind(device.getEndpoint(1), coordinatorEndpoint, ["genOnOff"]);
@@ -105,8 +108,12 @@ export const definitions: DefinitionWithExtend[] = [
         vendor: "Lonsonho",
         description: "1 gang switch",
         exposes: [e.switch().setAccess("state", ea.STATE_SET)],
-        fromZigbee: [legacy.fz.tuya_switch, fz.ignore_time_read],
+        fromZigbee: [legacy.fz.tuya_switch],
         toZigbee: [legacy.tz.tuya_switch_state],
+        whiteLabel: [
+            {vendor: "Moes", model: "WS-EUB1-ZG"},
+            {vendor: "Moes", model: "ZTS-EUB1"},
+        ],
     },
     {
         fingerprint: tuya.fingerprint("TS0601", ["_TZE200_dhdstcqc"]),
@@ -114,7 +121,7 @@ export const definitions: DefinitionWithExtend[] = [
         vendor: "Lonsonho",
         description: "2 gang switch",
         exposes: [e.switch().withEndpoint("l1").setAccess("state", ea.STATE_SET), e.switch().withEndpoint("l2").setAccess("state", ea.STATE_SET)],
-        fromZigbee: [legacy.fz.tuya_switch, fz.ignore_time_read],
+        fromZigbee: [legacy.fz.tuya_switch],
         toZigbee: [legacy.tz.tuya_switch_state],
         meta: {multiEndpoint: true},
         endpoint: (device) => {
@@ -132,7 +139,7 @@ export const definitions: DefinitionWithExtend[] = [
             e.switch().withEndpoint("l2").setAccess("state", ea.STATE_SET),
             e.switch().withEndpoint("l3").setAccess("state", ea.STATE_SET),
         ],
-        fromZigbee: [legacy.fz.tuya_switch, fz.ignore_time_read],
+        fromZigbee: [legacy.fz.tuya_switch],
         toZigbee: [legacy.tz.tuya_switch_state],
         meta: {multiEndpoint: true},
         endpoint: (device) => {
@@ -221,8 +228,9 @@ export const definitions: DefinitionWithExtend[] = [
         model: "QS-Zigbee-C03",
         vendor: "Lonsonho",
         description: "Curtain/blind motor controller",
-        fromZigbee: [fz.cover_position_tilt, fz.tuya_cover_options],
-        toZigbee: [tz.cover_state, tz.cover_position_tilt, tz.tuya_cover_calibration, tz.tuya_cover_reversal],
+        extend: [tuya.clusters.addTuyaClosuresWindowCoveringCluster()],
+        fromZigbee: [fz.cover_position_tilt, tuya.fz.cover_options],
+        toZigbee: [tz.cover_state, tz.cover_position_tilt, tuya.tz.cover_calibration, tuya.tz.cover_reversal],
         meta: {coverInverted: true},
         exposes: [
             e.cover_position(),
@@ -237,8 +245,7 @@ export const definitions: DefinitionWithExtend[] = [
         model: "VM-Zigbee-S02-0-10V",
         vendor: "Lonsonho",
         description: "2 channel Zigbee 0-10V dimmer module",
-        fromZigbee: [tuya.fz.datapoints],
-        toZigbee: [tuya.tz.datapoints],
+        extend: [tuya.modernExtend.tuyaBase({dp: true})],
         exposes: [
             tuya.exposes.lightBrightnessWithMinMax().withEndpoint("l1"),
             tuya.exposes.lightBrightnessWithMinMax().withEndpoint("l2"),

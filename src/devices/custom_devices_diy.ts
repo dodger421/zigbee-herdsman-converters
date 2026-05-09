@@ -65,13 +65,13 @@ const fzLocal = {
             if (msg.data["4919"]) result.transmit_power = msg.data["4919"];
             return result;
         },
-    } satisfies Fz.Converter,
+    } satisfies Fz.Converter<"genBasic", undefined, ["attributeReport", "readResponse"]>,
     humidity2: {
         cluster: "msRelativeHumidity",
         type: ["attributeReport", "readResponse"],
         convert: (model, msg, publish, options, meta) => {
             // multi-endpoint version based on the stastard onverter 'fz.humidity'
-            let humidity = Number.parseFloat(msg.data.measuredValue) / 100.0;
+            let humidity = msg.data.measuredValue / 100.0;
             humidity = calibrateAndPrecisionRoundOptions(humidity, options, "humidity");
 
             // https://github.com/Koenkk/zigbee2mqtt/issues/798
@@ -83,7 +83,7 @@ const fzLocal = {
                 return {[property]: humidity};
             }
         },
-    } satisfies Fz.Converter,
+    } satisfies Fz.Converter<"msRelativeHumidity", undefined, ["attributeReport", "readResponse"]>,
     illuminance2: {
         cluster: "msIlluminanceMeasurement",
         type: ["attributeReport", "readResponse"],
@@ -96,7 +96,7 @@ const fzLocal = {
             const property1 = multiEndpoint ? postfixWithEndpointName("illuminance", msg, model, meta) : "illuminance";
             return {[property1]: illuminanceLux};
         },
-    } satisfies Fz.Converter,
+    } satisfies Fz.Converter<"msIlluminanceMeasurement", undefined, ["attributeReport", "readResponse"]>,
     pressure2: {
         cluster: "msPressureMeasurement",
         type: ["attributeReport", "readResponse"],
@@ -107,14 +107,14 @@ const fzLocal = {
                 const scale = msg.endpoint.getClusterAttributeValue("msPressureMeasurement", "scale") as number;
                 pressure = msg.data.scaledValue / 10 ** scale / 100.0; // convert to hPa
             } else {
-                pressure = Number.parseFloat(msg.data.measuredValue);
+                pressure = msg.data.measuredValue;
             }
             pressure = calibrateAndPrecisionRoundOptions(pressure, options, "pressure");
             const multiEndpoint = model.meta?.multiEndpoint;
             const property = multiEndpoint ? postfixWithEndpointName("pressure", msg, model, meta) : "pressure";
             return {[property]: pressure};
         },
-    } satisfies Fz.Converter,
+    } satisfies Fz.Converter<"msPressureMeasurement", undefined, ["attributeReport", "readResponse"]>,
     multi_zig_sw_battery: {
         cluster: "genPowerCfg",
         type: ["attributeReport", "readResponse"],
@@ -123,7 +123,7 @@ const fzLocal = {
             const battery = (voltage - 2200) / 8;
             return {battery: battery > 100 ? 100 : battery, voltage: voltage};
         },
-    } satisfies Fz.Converter,
+    } satisfies Fz.Converter<"genPowerCfg", undefined, ["attributeReport", "readResponse"]>,
     multi_zig_sw_switch_buttons: {
         cluster: "genMultistateInput",
         type: ["attributeReport", "readResponse"],
@@ -134,7 +134,7 @@ const fzLocal = {
             const action = actionLookup[value];
             return {action: `${button}_${action}`};
         },
-    } satisfies Fz.Converter,
+    } satisfies Fz.Converter<"genMultistateInput", undefined, ["attributeReport", "readResponse"]>,
     multi_zig_sw_switch_config: {
         cluster: "genOnOffSwitchCfg",
         type: ["readResponse", "attributeReport"],
@@ -143,11 +143,85 @@ const fzLocal = {
             const {switchType} = msg.data;
             return {[`switch_type_${channel}`]: getKey(switchTypesList, switchType)};
         },
-    } satisfies Fz.Converter,
+    } satisfies Fz.Converter<"genOnOffSwitchCfg", undefined, ["readResponse", "attributeReport"]>,
+
+    acw02_clean_status: {
+        cluster: "genOnOff",
+        type: ["attributeReport", "readResponse"],
+        convert: (model, msg, publish, options, meta) => {
+            if (msg.endpoint.ID === 7 && Object.hasOwn(msg.data, "onOff")) {
+                return {filter_clean_status: msg.data["onOff"] === 1 ? "ON" : "OFF"};
+            }
+        },
+    } satisfies Fz.Converter<"genOnOff", undefined, ["attributeReport", "readResponse"]>,
+    acw02_error_status: {
+        cluster: "genOnOff",
+        type: ["attributeReport", "readResponse"],
+        convert: (model, msg, publish, options, meta) => {
+            if (msg.endpoint.ID === 9 && Object.hasOwn(msg.data, "onOff")) {
+                return {ac_error_status: msg.data["onOff"] === 1 ? "ON" : "OFF"};
+            }
+        },
+    } satisfies Fz.Converter<"genOnOff", undefined, ["attributeReport", "readResponse"]>,
+    acw02_error_text: {
+        cluster: "genBasic",
+        type: ["attributeReport", "readResponse"],
+        convert: (model, msg, publish, options, meta) => {
+            if (msg.endpoint.ID === 1 && msg.data["locationDesc"] !== undefined) {
+                let errorText = "";
+                const locationDesc = msg.data["locationDesc"] as string | number[] | undefined;
+
+                if (typeof locationDesc === "string") {
+                    errorText = locationDesc;
+                } else if (Array.isArray(locationDesc) && locationDesc.length > 0) {
+                    const textLength = locationDesc[0] as number;
+                    const textData = locationDesc.slice(1, 1 + textLength) as number[];
+                    errorText = String.fromCharCode(...textData);
+                }
+                return {error_text: errorText.trim()};
+            }
+        },
+    } satisfies Fz.Converter<"genBasic", undefined, ["attributeReport", "readResponse"]>,
+    acw02_thermostat: {
+        cluster: "hvacThermostat",
+        type: ["attributeReport", "readResponse"],
+        convert: (model, msg, publish, options, meta) => {
+            const result: KeyValue = {};
+            if (Object.hasOwn(msg.data, "localTemp")) {
+                result.local_temperature = (msg.data.localTemp as number) / 100;
+            }
+            if (Object.hasOwn(msg.data, "runningMode")) {
+                const modeMap: {[key: number]: string} = {
+                    0: "idle",
+                    3: "cool",
+                    4: "heat",
+                    7: "fan_only",
+                };
+                result.running_state = modeMap[msg.data.runningMode as number] || "idle";
+            }
+            if (Object.hasOwn(msg.data, "systemMode")) {
+                const sysModeMap: {[key: number]: string} = {
+                    0: "off",
+                    1: "auto",
+                    3: "cool",
+                    4: "heat",
+                    7: "fan_only",
+                    8: "dry",
+                };
+                result.system_mode = sysModeMap[msg.data.systemMode as number] || "off";
+            }
+            if (Object.hasOwn(msg.data, "occupiedHeatingSetpoint")) {
+                result.occupied_heating_setpoint = (msg.data.occupiedHeatingSetpoint as number) / 100;
+            } else if (Object.hasOwn(msg.data, "occupiedCoolingSetpoint")) {
+                result.occupied_heating_setpoint = (msg.data.occupiedCoolingSetpoint as number) / 100;
+            }
+            return result;
+        },
+    } satisfies Fz.Converter<"hvacThermostat", undefined, ["attributeReport", "readResponse"]>,
 };
 
 function ptvoGetMetaOption(device: Zh.Device | DummyDevice, key: string, defaultValue: unknown) {
-    if (!utils.isDummyDevice(device)) {
+    if (!utils.isDummyDevice(device) && device.meta) {
         const value = device.meta[key];
         if (value === undefined) {
             return defaultValue;
@@ -223,9 +297,21 @@ function ptvoAddStandardExposes(endpoint: Zh.Endpoint, expose: Expose[], options
     if (endpoint.supportsInputCluster("genPowerCfg")) {
         deviceOptions.expose_battery = true;
     }
-    if (endpoint.supportsInputCluster("genMultistateInput") || endpoint.supportsOutputCluster("genMultistateInput")) {
+    if (
+        endpoint.supportsInputCluster("genMultistateInput") ||
+        endpoint.supportsOutputCluster("genMultistateInput") ||
+        Object.hasOwn(endpoint.clusters, "genMultistateInput")
+    ) {
         deviceOptions.expose_action = true;
     }
+}
+
+interface MiCasaGasMetering {
+    attributes: {
+        setSummationDelivered: number;
+    };
+    commands: never;
+    commandResponses: never;
 }
 
 export const definitions: DefinitionWithExtend[] = [
@@ -236,15 +322,22 @@ export const definitions: DefinitionWithExtend[] = [
             {modelID: "ZB-GW04", manufacturerName: "easyiot", applicationVersion: 200},
             {modelID: "ZB-GW04-1v1", manufacturerName: "easyiot", applicationVersion: 200},
             {modelID: "ZB-GW04-1v2", manufacturerName: "easyiot", applicationVersion: 200},
+            {modelID: "ZBM-MG24", manufacturerName: "Inswift", applicationVersion: 200},
             {modelID: "SkyConnect", manufacturerName: "NabuCasa", applicationVersion: 200},
+            {modelID: "ZBT-2", manufacturerName: "NabuCasa", applicationVersion: 200},
             {modelID: "SLZB-06M", manufacturerName: "SMLIGHT", applicationVersion: 200},
             {modelID: "SLZB-06MG24", manufacturerName: "SMLIGHT", applicationVersion: 200},
             {modelID: "SLZB-06MG26", manufacturerName: "SMLIGHT", applicationVersion: 200},
+            {modelID: "SLZB-06MG26U", manufacturerName: "SMLIGHT", applicationVersion: 200},
             {modelID: "SLZB-07", manufacturerName: "SMLIGHT", applicationVersion: 200},
             {modelID: "SLZB-07MG24", manufacturerName: "SMLIGHT", applicationVersion: 200},
             {modelID: "DONGLE-E", manufacturerName: "SONOFF", applicationVersion: 200},
+            {modelID: "Dongle-LMG21", manufacturerName: "SONOFF", applicationVersion: 200},
+            {modelID: "Dongle-M", manufacturerName: "SONOFF", applicationVersion: 200},
+            {modelID: "Dongle-PMG24", manufacturerName: "SONOFF", applicationVersion: 200},
             {modelID: "MGM240P", manufacturerName: "SparkFun", applicationVersion: 200},
             {modelID: "MGM24", manufacturerName: "TubesZB", applicationVersion: 200},
+            {modelID: "BM24", manufacturerName: "TubesZB", applicationVersion: 200},
         ],
         model: "Silabs series 2 router",
         vendor: "Silabs",
@@ -293,7 +386,7 @@ export const definitions: DefinitionWithExtend[] = [
         model: "CC2530.ROUTER",
         vendor: "Custom devices (DiY)",
         description: "CC2530 router",
-        fromZigbee: [fz.CC2530ROUTER_led, fz.CC2530ROUTER_meta, fz.ignore_basic_report],
+        fromZigbee: [fz.CC2530ROUTER_led, fz.CC2530ROUTER_meta],
         toZigbee: [tz.ptvo_switch_trigger],
         exposes: [e.binary("led", ea.STATE, true, false)],
     },
@@ -301,8 +394,8 @@ export const definitions: DefinitionWithExtend[] = [
         zigbeeModel: ["cc2538.router.v1"],
         model: "CC2538.ROUTER.V1",
         vendor: "Custom devices (DiY)",
-        description: "MODKAM stick СС2538 router",
-        fromZigbee: [fz.ignore_basic_report],
+        description: "MODKAM stick CC2538 router",
+        fromZigbee: [],
         toZigbee: [],
         exposes: [],
     },
@@ -310,8 +403,8 @@ export const definitions: DefinitionWithExtend[] = [
         zigbeeModel: ["cc2538.router.v2"],
         model: "CC2538.ROUTER.V2",
         vendor: "Custom devices (DiY)",
-        description: "MODKAM stick СС2538 router with temperature sensor",
-        fromZigbee: [fz.ignore_basic_report, fz.device_temperature],
+        description: "MODKAM stick CC2538 router with temperature sensor",
+        fromZigbee: [fz.device_temperature],
         toZigbee: [],
         exposes: [e.device_temperature()],
     },
@@ -327,7 +420,6 @@ export const definitions: DefinitionWithExtend[] = [
             fz.ptvo_switch_uart,
             fz.ptvo_switch_analog_input,
             fz.brightness,
-            fz.ignore_basic_report,
             fz.temperature,
             fzLocal.humidity2,
             fzLocal.pressure2,
@@ -335,8 +427,16 @@ export const definitions: DefinitionWithExtend[] = [
             fz.electrical_measurement,
             fz.metering,
             fz.co2,
+            fz.color_colortemp,
         ],
-        toZigbee: [tz.ptvo_switch_trigger, tz.ptvo_switch_uart, tz.ptvo_switch_analog_input, tz.ptvo_switch_light_brightness, tzLocal.ptvo_on_off],
+        toZigbee: [
+            tz.ptvo_switch_trigger,
+            tz.ptvo_switch_uart,
+            tz.ptvo_switch_analog_input,
+            tz.ptvo_switch_light_brightness,
+            tzLocal.ptvo_on_off,
+            tz.light_color,
+        ],
         exposes: (device, options) => {
             const expose: Expose[] = [];
             const exposeDeviceOptions: KeyValue = {};
@@ -601,7 +701,7 @@ export const definitions: DefinitionWithExtend[] = [
                             acVoltageMultiplier: 1,
                             acCurrentDivisor: 1000,
                             acCurrentMultiplier: 1,
-                            acPowerDivisor: 10,
+                            acPowerDivisor: 1,
                             acPowerMultiplier: 1,
                         });
                     }
@@ -671,7 +771,7 @@ export const definitions: DefinitionWithExtend[] = [
         zigbeeModel: ["ZigUP"],
         model: "ZigUP",
         vendor: "Custom devices (DiY)",
-        description: "CC2530 based ZigBee relais, switch, sensor and router",
+        description: "CC2530 based Zigbee relais, switch, sensor and router",
         fromZigbee: [fz.ZigUP],
         toZigbee: [tz.on_off, tz.light_color, tz.ZigUP_lock],
         exposes: [e.switch()],
@@ -744,7 +844,7 @@ export const definitions: DefinitionWithExtend[] = [
         model: "MULTI-ZIG-SW",
         vendor: "smarthjemmet.dk",
         description: "Multi switch from Smarthjemmet.dk",
-        fromZigbee: [fz.ignore_basic_report, fzLocal.multi_zig_sw_switch_buttons, fzLocal.multi_zig_sw_battery, fzLocal.multi_zig_sw_switch_config],
+        fromZigbee: [fzLocal.multi_zig_sw_switch_buttons, fzLocal.multi_zig_sw_battery, fzLocal.multi_zig_sw_switch_config],
         toZigbee: [tzLocal.multi_zig_sw_switch_type],
         exposes: [
             ...[e.enum("switch_type_1", exposes.access.ALL, Object.keys(switchTypesList)).withEndpoint("button_1")],
@@ -983,7 +1083,7 @@ export const definitions: DefinitionWithExtend[] = [
         model: "QUAD-ZIG-SW",
         vendor: "smarthjemmet.dk",
         description: "FUGA compatible switch from Smarthjemmet.dk",
-        fromZigbee: [fz.ignore_basic_report, fzLocal.multi_zig_sw_switch_buttons, fzLocal.multi_zig_sw_battery, fzLocal.multi_zig_sw_switch_config],
+        fromZigbee: [fzLocal.multi_zig_sw_switch_buttons, fzLocal.multi_zig_sw_battery, fzLocal.multi_zig_sw_switch_config],
         toZigbee: [tzLocal.multi_zig_sw_switch_type],
         exposes: [
             ...[e.enum("switch_type_1", exposes.access.ALL, Object.keys(switchTypesList)).withEndpoint("button_1")],
@@ -1008,7 +1108,7 @@ export const definitions: DefinitionWithExtend[] = [
         model: "ptvo_counter_2ch",
         vendor: "Custom devices (DiY)",
         description: "2 channel counter",
-        fromZigbee: [fz.ignore_basic_report, fz.battery, fz.ptvo_switch_analog_input, fz.on_off],
+        fromZigbee: [fz.battery, fz.ptvo_switch_analog_input, fz.on_off],
         toZigbee: [tz.ptvo_switch_trigger, tz.ptvo_switch_analog_input, tz.on_off],
         exposes: [
             e.battery(),
@@ -1075,5 +1175,156 @@ export const definitions: DefinitionWithExtend[] = [
         vendor: "Custom devices (DiY)",
         description: "DIY Zigbee light using M5NanoC6",
         extend: [m.light({color: {modes: ["xy", "hs"]}})],
+    },
+    {
+        zigbeeModel: ["acw02-z"],
+        model: "ACW02-ZB",
+        vendor: "Custom devices (DiY)",
+        description: "ACW02 HVAC Thermostat Controller via Zigbee (Router)",
+        meta: {multiEndpoint: true},
+        fromZigbee: [fzLocal.acw02_thermostat, fzLocal.acw02_clean_status, fzLocal.acw02_error_status, fz.on_off, fzLocal.acw02_error_text],
+        toZigbee: [tz.thermostat_local_temperature, tz.thermostat_occupied_heating_setpoint, tz.thermostat_system_mode, tz.on_off],
+        exposes: [
+            e
+                .climate()
+                .withSetpoint("occupied_heating_setpoint", 16, 31, 1)
+                .withLocalTemperature()
+                .withSystemMode(["off", "auto", "cool", "heat", "dry", "fan_only"])
+                .withRunningState(["idle", "heat", "cool", "fan_only"]),
+            exposes.text("error_text", ea.STATE_GET).withDescription("Error message from AC unit (read-only)"),
+            exposes.binary("ac_error_status", ea.STATE_GET, "ON", "OFF").withDescription("Error status indicator (read-only)"),
+            e.switch().withEndpoint("eco_mode").withDescription("Eco mode"),
+            e.switch().withEndpoint("swing_mode").withDescription("Swing mode"),
+            e.switch().withEndpoint("display").withDescription("Display control"),
+            e.switch().withEndpoint("night_mode").withDescription("Night/sleep mode"),
+            e.switch().withEndpoint("purifier").withDescription("Air purifier/ionizer"),
+            exposes.binary("filter_clean_status", ea.STATE_GET, "ON", "OFF").withDescription("Filter cleaning reminder (read-only)"),
+            e.switch().withEndpoint("mute").withDescription("Mute beep sounds"),
+        ],
+        endpoint: (device) => {
+            return {
+                default: 1,
+                eco_mode: 2,
+                swing_mode: 3,
+                display: 4,
+                night_mode: 5,
+                purifier: 6,
+                clean_sensor: 7,
+                mute: 8,
+                error_sensor: 9,
+            };
+        },
+        configure: async (device, coordinatorEndpoint, logger) => {
+            const endpoint1 = device.getEndpoint(1);
+            const endpoint2 = device.getEndpoint(2);
+            const endpoint3 = device.getEndpoint(3);
+            const endpoint4 = device.getEndpoint(4);
+            const endpoint5 = device.getEndpoint(5);
+            const endpoint6 = device.getEndpoint(6);
+            const endpoint7 = device.getEndpoint(7);
+            const endpoint8 = device.getEndpoint(8);
+            const endpoint9 = device.getEndpoint(9);
+
+            await reporting.bind(endpoint1, coordinatorEndpoint, ["genBasic", "hvacThermostat", "hvacFanCtrl"]);
+            await reporting.thermostatTemperature(endpoint1);
+            await reporting.thermostatOccupiedHeatingSetpoint(endpoint1);
+            await endpoint1.configureReporting("hvacThermostat", [
+                {
+                    attribute: "systemMode",
+                    minimumReportInterval: 1,
+                    maximumReportInterval: 300,
+                    reportableChange: 1,
+                },
+            ]);
+
+            // Configure all switch endpoints
+            for (const ep of [endpoint2, endpoint3, endpoint4, endpoint5, endpoint6, endpoint7, endpoint8, endpoint9]) {
+                await reporting.bind(ep, coordinatorEndpoint, ["genOnOff"]);
+                await reporting.onOff(ep);
+            }
+
+            // Initial read of unreportable attributes
+            await endpoint1.read("hvacThermostat", ["runningMode"]);
+            await endpoint1.read("genBasic", ["locationDesc"]);
+            await endpoint1.read("hvacFanCtrl", ["fanMode"]);
+        },
+        extend: [
+            m.enumLookup({
+                name: "fan_mode",
+                cluster: "hvacFanCtrl",
+                attribute: "fanMode",
+                lookup: {
+                    auto: 0x00,
+                    low: 0x01,
+                    "low-med": 0x02,
+                    medium: 0x03,
+                    "med-high": 0x04,
+                    high: 0x05,
+                    quiet: 0x06,
+                },
+                description: "Fan speed: Quiet=SILENT, Low=P20, Low-Med=P40, Medium=P60, Med-High=P80, High=P100, Auto=AUTO",
+            }),
+            m.poll({
+                key: "acw02_state",
+                option: e
+                    .numeric("acw02_poll_interval", ea.SET)
+                    .withValueMin(-1)
+                    .withDescription("Polling interval in seconds for unreportable attributes (default: 60s, -1 to disable)"),
+                defaultIntervalSeconds: 60,
+                poll: async (device) => {
+                    const endpoint1 = device.getEndpoint(1);
+                    if (!endpoint1) return;
+
+                    try {
+                        await endpoint1.read("hvacThermostat", ["runningMode"]);
+                        await endpoint1.read("hvacFanCtrl", ["fanMode"]);
+                        await endpoint1.read("genBasic", ["locationDesc"]);
+                    } catch (error) {
+                        console.error(`ACW02 polling failed: ${(error as Error).message}`);
+                    }
+                },
+            }),
+        ],
+        ota: true,
+    },
+    {
+        zigbeeModel: ["MiCASAGasCounter"],
+        model: "MiCASAGasCounter",
+        vendor: "Custom devices (DiY)",
+        description: "Zigbee Gas counter",
+        ota: true,
+        extend: [
+            m.gasMeter({cluster: "metering", power: false}),
+            m.battery({voltage: true, lowStatus: true}),
+
+            m.deviceAddCustomCluster("seMetering", {
+                ID: 0x0702,
+                attributes: {
+                    setSummationDelivered: {
+                        ID: 0xf000,
+                        name: "setCurrentSummationDelivered",
+                        type: Zcl.DataType.UINT48,
+                        manufacturerCode: 0x8888,
+                        write: true,
+                    },
+                },
+                commands: {},
+                commandsResponse: {},
+                name: "seMetering",
+            }),
+
+            m.numeric<"seMetering", MiCasaGasMetering>({
+                name: "gas_counter_set",
+                cluster: "seMetering",
+                attribute: "setSummationDelivered",
+                description: "Write absolute gas meter value",
+                access: "SET",
+                valueMin: 0,
+                valueMax: 281474976710655,
+            }),
+        ],
+        meta: {
+            publishDuplicateTransaction: true,
+        },
     },
 ];

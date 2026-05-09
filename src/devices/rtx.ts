@@ -9,12 +9,12 @@ const ea = exposes.access;
 
 export const definitions: DefinitionWithExtend[] = [
     {
-        fingerprint: tuya.fingerprint("TS0601", ["_TZE200_akjefhj5", "_TZE200_2wg5qrjy", "_TZE200_81isopgh"]),
+        fingerprint: tuya.fingerprint("TS0601", ["_TZE200_akjefhj5", "_TZE200_2wg5qrjy", "_TZE200_81isopgh", "_TZE284_xuflgcnz"]),
         model: "ZVG1",
         vendor: "RTX",
         description: "Zigbee smart water valve",
         extend: [tuya.modernExtend.tuyaBase({forceTimeUpdates: true})],
-        fromZigbee: [legacy.fz.ZVG1, fz.ignore_basic_report],
+        fromZigbee: [legacy.fz.ZVG1],
         toZigbee: [
             legacy.tz.tuya_switch_state,
             legacy.tz.ZVG1_weather_delay,

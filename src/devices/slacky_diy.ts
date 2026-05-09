@@ -1,26 +1,38 @@
+import type {ClusterOrRawAttributeKeys, PartialClusterOrRawWriteAttributes} from "zigbee-herdsman/dist/controller/tstype";
 import * as fz from "../converters/fromZigbee";
 import * as tz from "../converters/toZigbee";
 import * as exposes from "../lib/exposes";
 import * as m from "../lib/modernExtend";
 import * as reporting from "../lib/reporting";
-import * as globalStore from "../lib/store";
-import type {Definition, DefinitionWithExtend, Expose, Fz, KeyValue, KeyValueAny, ModernExtend, Tz, Zh} from "../lib/types";
+//import * as globalStore from "../lib/store";
+import type {Configure, Definition, DefinitionWithExtend, Expose, Fz, KeyValue, KeyValueAny, ModernExtend, Tz, Zh} from "../lib/types";
 import * as utils from "../lib/utils";
+
+//import {logger} from "../lib/logger";
 
 const e = exposes.presets;
 const ea = exposes.access;
 
+//const NS = "zhc:slacky_diy";
+
 const ppmReporting = {min: 10, max: 300, change: 0.000001};
-const batteryReporting = {min: 3600, max: 0, change: 0};
+const batteryReporting = {min: 3600, max: 21600, change: 0};
 const temperatureReporting = {min: 10, max: 3600, change: 10};
 const humidityReporting = {min: 10, max: 3600, change: 10};
 
-const model_r01 = "Tuya_Thermostat_r01";
-const model_r03 = "Tuya_Thermostat_r03";
-const model_r04 = "Tuya_Thermostat_r04";
-const model_r06 = "Tuya_Thermostat_r06";
-const model_r07 = "Tuya_Thermostat_r07";
-const model_r08 = "Tuya_Thermostat_r08";
+const model_r01 = "THERM_SLACKY_DIY_R01";
+//const model_r02 = "THERM_SLACKY_DIY_R02";
+const model_r03 = "THERM_SLACKY_DIY_R03";
+const model_r04 = "THERM_SLACKY_DIY_R04";
+//const model_r05 = "THERM_SLACKY_DIY_R05";
+const model_r06 = "THERM_SLACKY_DIY_R06";
+const model_r07 = "THERM_SLACKY_DIY_R07";
+const model_r08 = "THERM_SLACKY_DIY_R08";
+const model_r09 = "THERM_SLACKY_DIY_R09";
+//const model_r0a = "THERM_SLACKY_DIY_R0A";
+const model_r0b = "THERM_SLACKY_DIY_R0B";
+const modelR0c = "THERM_SLACKY_DIY_R0C";
+const model_r0d = "THERM_SLACKY_DIY_R0D";
 
 const attrThermSensorUser = 0xf000;
 const attrThermFrostProtect = 0xf001;
@@ -35,6 +47,10 @@ const attrThermLevel = 0xf009;
 const attrThermInversion = 0xf00a;
 const attrThermEcoModeCoolTemperature = 0xf00b;
 const attrThermExtTemperatureCalibration = 0xf00c;
+const attrThermModeKeyLock = 0xf00d;
+const attrThermManufName = 0xf00e;
+const attrThermScreenOffTime = 0xf00f;
+const attrThermLedIndicator = 0xf010;
 const attrFanCtrlControl = 0xf000;
 
 const switchSensorUsed = ["Inner (IN)", "All (AL)", "Outer (OU)"];
@@ -55,6 +71,7 @@ const attrHumidityOffset = 0xf005;
 const attrHumidityOnOff = 0xf006;
 const attrHumidityLow = 0xf007;
 const attrHumidityHigh = 0xf008;
+const attrRepeatCommand = 0xf009;
 
 const attrCo2Calibration = 0xf008;
 const attrFeaturesSensors = 0xf009;
@@ -63,6 +80,63 @@ const attrDisplayInversion = 0xf00b;
 
 const switchFeatures = ["nothing", "co2_forced_calibration", "co2_factory_reset", "bind_reset", ""];
 
+const attrPlugKeyLock = 0xf000;
+const attrPlugLedCtrl = 0xf001;
+const attrPlugSwitchCurrentMax = 0xf002;
+const attrPlugSwitchPowerMax = 0xf003;
+const attrPlugSwitchTimeReload = 0xf004;
+const attrPlugSwitchProtectCtrl = 0xf005;
+const attrPlugSwitchAutoRestart = 0xf006;
+
+const attrSwitchType = 0xf000;
+const attrSwitchDecoupled = 0xf001;
+
+const attrDeviceModelNumber = 0xf002;
+
+const attrDoorDelayOn = 0xf003;
+const attrDoorDelayOff = 0xf004;
+const attrDoorOnCmdOff = 0xf005;
+const attrDoorOffCmdOff = 0xf006;
+
+const attrSceneId = 0xf000;
+const attrGroupId = 0xf001;
+
+interface SlackyDiyScene {
+    attributes: {
+        customSceneId: number;
+        customGroupId: number;
+    };
+    commands: never;
+    commandResponses: never;
+}
+
+interface SlackyDiyOnOffCfg {
+    attributes: {
+        customSwitchType: number;
+        customRelayControl: number;
+        customDeviceModelNumber: number;
+        customDelayOn: number;
+        customDelayOff: number;
+        customOnCmdOff: number;
+        customOffCmdOff: number;
+    };
+    commands: never;
+    commandResponses: never;
+}
+
+interface SlackyDiySeMetering {
+    attributes: {
+        deviceModel: number;
+        deviceAddress: number;
+        readPeriod: number;
+        dateRelease: string;
+        deviceName: string;
+        devicePassword: string;
+    };
+    commands: never;
+    commandResponses: never;
+}
+
 const fzLocal = {
     thermostat_custom_fw: {
         cluster: "hvacThermostat",
@@ -70,66 +144,89 @@ const fzLocal = {
         convert: (model, msg, publish, options, meta) => {
             const result: KeyValue = {};
             if (msg.data[attrThermSensorUser] !== undefined) {
-                const lookup = {0: "Inner (IN)", 1: "All (AL)", 2: "Outer (OU)"};
-                result.sensor = utils.getFromLookup(msg.data[attrThermSensorUser], lookup);
+                const lookup2 = {0: "Inner (IN)", 1: "Outer (OU)"};
+                const lookup3 = {0: "Inner (IN)", 1: "All (AL)", 2: "Outer (OU)"};
+                if (model.model === model_r0b) {
+                    result.sensor = utils.getFromLookup(msg.data[attrThermSensorUser], lookup2);
+                } else {
+                    result.sensor = utils.getFromLookup(msg.data[attrThermSensorUser], lookup3);
+                }
             }
             if (msg.data.minSetpointDeadBand !== undefined) {
+                //logger.info(`Model: ${model.model}`, NS);
                 let data: number;
-                if (model.model === model_r06) {
-                    data = Number.parseFloat(msg.data.minSetpointDeadBand) / 10;
-                    result.histeresis_temperature = data;
+                if (model.model === model_r06 || model.model === model_r09 || model.model === model_r0b || model.model === model_r0d) {
+                    data = msg.data.minSetpointDeadBand / 10;
+                    result.hysteresis_temperature = data;
                 } else {
-                    data = Number.parseInt(msg.data.minSetpointDeadBand, 10);
+                    data = msg.data.minSetpointDeadBand;
                     result.deadzone_temperature = data;
                 }
                 //logger.info(`DeadBand: ${data}`, NS);
             }
             if (msg.data[attrThermFrostProtect] !== undefined) {
-                const data = Number.parseInt(msg.data[attrThermFrostProtect], 10) / 100;
+                const data = Number.parseInt(msg.data[attrThermFrostProtect] as string, 10) / 100;
                 result.frost_protect = data;
             }
             if (msg.data[attrThermHeatProtect] !== undefined) {
-                const data = Number.parseInt(msg.data[attrThermHeatProtect], 10) / 100;
+                const data = Number.parseInt(msg.data[attrThermHeatProtect] as string, 10) / 100;
                 result.heat_protect = data;
             }
             if (msg.data[attrThermEcoMode] !== undefined) {
                 result.eco_mode = msg.data[attrThermEcoMode] === 1 ? "On" : "Off";
             }
             if (msg.data[attrThermEcoModeCoolTemperature] !== undefined) {
-                const data = Number.parseInt(msg.data[attrThermEcoModeCoolTemperature], 10) / 100;
+                const data = Number.parseInt(msg.data[attrThermEcoModeCoolTemperature] as string, 10) / 100;
                 result.eco_mode_cool_temperature = data;
             }
             if (msg.data[attrThermEcoModeHeatTemperature] !== undefined) {
-                const data = Number.parseInt(msg.data[attrThermEcoModeHeatTemperature], 10) / 100;
+                const data = Number.parseInt(msg.data[attrThermEcoModeHeatTemperature] as string, 10) / 100;
                 result.eco_mode_heat_temperature = data;
             }
             if (msg.data[attrThermFrostProtectOnOff] !== undefined) {
                 result.frost_protect_on_off = msg.data[attrThermFrostProtectOnOff] === 1 ? "On" : "Off";
             }
             if (msg.data[attrThermLevel] !== undefined) {
-                const lookup = {0: "Off", 1: "Low", 2: "Medium", 3: "High"};
-                result.brightness_level = utils.getFromLookup(msg.data[attrThermLevel], lookup);
+                if (model.model === model_r0b) {
+                    const lookup_sleep = {0: "Off", 1: "Dim", 2: "On"};
+                    result.screen_sleep_mode = utils.getFromLookup(msg.data[attrThermLevel], lookup_sleep);
+                } else {
+                    const lookup = {0: "Off", 1: "Low", 2: "Medium", 3: "High"};
+                    result.brightness_level = utils.getFromLookup(msg.data[attrThermLevel], lookup);
+                }
+            }
+            if (msg.data[attrThermScreenOffTime] !== undefined) {
+                if (model.model === model_r0d) {
+                    const lookup_time = {0: "10s", 1: "20s", 2: "30s", 3: "40s", 4: "50s", 5: "60s"};
+                    result.screen_sleep_time = utils.getFromLookup(msg.data[attrThermScreenOffTime], lookup_time);
+                }
+            }
+            if (msg.data[attrThermLedIndicator] !== undefined) {
+                result.led_indicator = msg.data[attrThermLedIndicator] === 1 ? "On" : "Off";
             }
             if (msg.data[attrThermSound] !== undefined) {
                 result.sound = msg.data[attrThermSound] === 1 ? "On" : "Off";
             }
             if (msg.data[attrThermInversion] !== undefined) {
-                result.inversion = msg.data[attrThermInversion] === 1 ? "On" : "Off";
+                result.relay_type = msg.data[attrThermInversion] === 1 ? "NO" : "NC";
+            }
+            if (msg.data[attrThermModeKeyLock] !== undefined) {
+                result.mode_child_lock = msg.data[attrThermModeKeyLock] === 1 ? "all" : "partial";
             }
             if (msg.data[attrThermScheduleMode] !== undefined) {
                 const lookup = {0: "Off", 1: "5+2", 2: "6+1", 3: "7"};
                 result.schedule_mode = utils.getFromLookup(msg.data[attrThermScheduleMode], lookup);
             }
             if (msg.data[attrThermExtTemperatureCalibration] !== undefined) {
-                const data = Number.parseInt(msg.data[attrThermExtTemperatureCalibration], 10) / 10;
+                const data = Number.parseInt(msg.data[attrThermExtTemperatureCalibration] as string, 10) / 10;
                 result.external_temperature_calibration = data;
             }
             return result;
         },
-    } satisfies Fz.Converter,
+    } satisfies Fz.Converter<"hvacThermostat", undefined, ["attributeReport", "readResponse"]>,
     thermostat_schedule: {
         cluster: "hvacThermostat",
-        type: ["commandSetWeeklySchedule"],
+        type: ["commandSetWeeklySchedule", "commandGetWeeklyScheduleRsp"],
         convert: (model, msg, publish, options, meta) => {
             const {data} = msg;
 
@@ -140,7 +237,7 @@ const fzLocal = {
             const daysOfWeek = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
             return Object.fromEntries(daysOfWeekNums.map((d) => [`schedule_${daysOfWeek[d]}`, schedule]));
         },
-    } satisfies Fz.Converter,
+    } satisfies Fz.Converter<"hvacThermostat", undefined, ["commandSetWeeklySchedule", "commandGetWeeklyScheduleRsp"]>,
     fancontrol_control: {
         cluster: "hvacFanCtrl",
         type: ["attributeReport", "readResponse"],
@@ -151,7 +248,7 @@ const fzLocal = {
             }
             return result;
         },
-    } satisfies Fz.Converter,
+    } satisfies Fz.Converter<"hvacFanCtrl", undefined, ["attributeReport", "readResponse"]>,
     display_brightness: {
         cluster: "genLevelCtrl",
         type: ["attributeReport", "readResponse"],
@@ -164,7 +261,19 @@ const fzLocal = {
             }
             return result;
         },
-    } satisfies Fz.Converter,
+    } satisfies Fz.Converter<"genLevelCtrl", undefined, ["attributeReport", "readResponse"]>,
+    thermostat_humidity_offset: {
+        cluster: "msRelativeHumidity",
+        type: ["attributeReport", "readResponse"],
+        convert: (model, msg, publish, options, meta) => {
+            const result: KeyValue = {};
+            if (msg.data[attrHumidityOffset] !== undefined) {
+                const data = Number.parseInt(msg.data[attrHumidityOffset] as string, 10) / 100;
+                result.humidity_offset = data;
+            }
+            return result;
+        },
+    } satisfies Fz.Converter<"msRelativeHumidity", undefined, ["attributeReport", "readResponse"]>,
 };
 
 const tzLocal = {
@@ -172,23 +281,43 @@ const tzLocal = {
         key: ["brightness", "brightness_day", "brightness_night"],
         options: [exposes.options.transition()],
         convertSet: async (entity, key, value, meta) => {
-            await entity.command("genLevelCtrl", "moveToLevel", {level: value as number, transtime: 0}, utils.getOptions(meta.mapped, entity));
+            await entity.command(
+                "genLevelCtrl",
+                "moveToLevel",
+                {level: value as number, transtime: 0, optionsMask: 0, optionsOverride: 0},
+                utils.getOptions(meta.mapped, entity),
+            );
             return {state: {brightness: value}};
         },
         convertGet: async (entity, key, meta) => {
             await entity.read("genLevelCtrl", ["currentLevel"]);
         },
     } satisfies Tz.Converter,
+    thermostat_humidity_offset: {
+        key: ["humidity_offset"],
+        convertSet: async (entity, key, value, meta) => {
+            utils.assertNumber(value);
+            const humidity_offset = Number(Math.round(value)) * 100;
+            await entity.write("msRelativeHumidity", {[attrHumidityOffset]: {value: humidity_offset, type: 0x29}});
+            return {readAfterWriteTime: 250, state: {humidity_offset: value}};
+        },
+        convertGet: async (entity, key, meta) => {
+            await entity.read("msRelativeHumidity", [attrHumidityOffset]);
+        },
+    } satisfies Tz.Converter,
     thermostat_sensor_used: {
         key: ["sensor"],
 
         convertSet: async (entity, key, value, meta) => {
-            const endpoint = meta.device.getEndpoint(1);
-            const lookup = {"Inner (IN)": 0, "All (AL)": 1, "Outer (OU)": 2};
-            await endpoint.write("hvacThermostat", {[attrThermSensorUser]: {value: utils.getFromLookup(value, lookup), type: 0x30}});
-            return {
-                state: {[key]: value},
-            };
+            //const endpoint = meta.device.getEndpoint(1);
+            const lookup2 = {"Inner (IN)": 0, "Outer (OU)": 1};
+            const lookup3 = {"Inner (IN)": 0, "All (AL)": 1, "Outer (OU)": 2};
+            if ((meta.mapped as Definition).model === model_r0b) {
+                await entity.write("hvacThermostat", {[attrThermSensorUser]: {value: utils.getFromLookup(value, lookup2), type: 0x30}});
+            } else {
+                await entity.write("hvacThermostat", {[attrThermSensorUser]: {value: utils.getFromLookup(value, lookup3), type: 0x30}});
+            }
+            return {readAfterWriteTime: 250, state: {sensor: value}};
         },
         convertGet: async (entity, key, meta) => {
             await entity.read("hvacThermostat", [attrThermSensorUser]);
@@ -207,12 +336,12 @@ const tzLocal = {
         },
     } satisfies Tz.Converter,
     thermostat_deadzone_10: {
-        key: ["histeresis_temperature"],
+        key: ["hysteresis_temperature"],
         convertSet: async (entity, key, value, meta) => {
             utils.assertNumber(value);
             const minSetpointDeadBand = Number(value) * 10;
             await entity.write("hvacThermostat", {minSetpointDeadBand});
-            return {readAfterWriteTime: 250, state: {histeresis_temperature: value}};
+            return {readAfterWriteTime: 250, state: {hysteresis_temperature: value}};
         },
         convertGet: async (entity, key, meta) => {
             await entity.read("hvacThermostat", ["minSetpointDeadBand"]);
@@ -222,7 +351,7 @@ const tzLocal = {
         key: ["frost_protect"],
         convertSet: async (entity, key, value, meta) => {
             utils.assertNumber(value);
-            if (!utils.isInRange(0, 10, Number(value))) throw new Error(`Invalid value: ${value} (expected ${0} to ${10})`);
+            //if (!utils.isInRange(0, 10, Number(value))) throw new Error(`Invalid value: ${value} (expected ${0} to ${10})`);
             const frost_protect = Number(Math.round(value)) * 100;
             await entity.write("hvacThermostat", {[attrThermFrostProtect]: {value: frost_protect, type: 0x29}});
             return {readAfterWriteTime: 250, state: {frost_protect: value}};
@@ -235,7 +364,7 @@ const tzLocal = {
         key: ["heat_protect"],
         convertSet: async (entity, key, value, meta) => {
             utils.assertNumber(value);
-            if (!utils.isInRange(25, 70, Number(value))) throw new Error(`Invalid value: ${value} (expected ${25} to ${70})`);
+            //if (!utils.isInRange(25, 70, Number(value))) throw new Error(`Invalid value: ${value} (expected ${25} to ${70})`);
             const heat_protect = Number(Math.round(value)) * 100;
             await entity.write("hvacThermostat", {[attrThermHeatProtect]: {value: heat_protect, type: 0x29}});
             return {readAfterWriteTime: 250, state: {heat_protect: value}};
@@ -248,7 +377,7 @@ const tzLocal = {
         key: ["setpoint_raise_lower"],
         convertSet: async (entity, key, value, meta) => {
             utils.assertNumber(value);
-            if (!utils.isInRange(-5, 5, Number(value))) throw new Error(`Invalid value: ${value} (expected ${-5} to ${5})`);
+            //if (!utils.isInRange(-5, 5, Number(value))) throw new Error(`Invalid value: ${value} (expected ${-5} to ${5})`);
             const setpoint_raise_lower = Number(Math.fround(value)) * 10; //Step 0.1°C. 5°C - 50, 1°C - 10 etc.
             await entity.command("hvacThermostat", "setpointRaiseLower", {mode: 0, amount: setpoint_raise_lower});
             return {readAfterWriteTime: 250, state: {setpoint_raise_lower: value}};
@@ -280,7 +409,7 @@ const tzLocal = {
         key: ["eco_mode_cool_temperature"],
         convertSet: async (entity, key, value, meta) => {
             utils.assertNumber(value);
-            if (!utils.isInRange(5, 45, Number(value))) throw new Error(`Invalid value: ${value} (expected ${5} to ${45})`);
+            //if (!utils.isInRange(5, 45, Number(value))) throw new Error(`Invalid value: ${value} (expected ${5} to ${45})`);
             const eco_mode_cool_temperature = Number(Math.round(value)) * 100;
             await entity.write("hvacThermostat", {[attrThermEcoModeCoolTemperature]: {value: eco_mode_cool_temperature, type: 0x29}});
             return {readAfterWriteTime: 250, state: {eco_mode_cool_temperature: value}};
@@ -293,7 +422,7 @@ const tzLocal = {
         key: ["eco_mode_heat_temperature"],
         convertSet: async (entity, key, value, meta) => {
             utils.assertNumber(value);
-            if (!utils.isInRange(5, 45, Number(value))) throw new Error(`Invalid value: ${value} (expected ${5} to ${45})`);
+            //if (!utils.isInRange(5, 45, Number(value))) throw new Error(`Invalid value: ${value} (expected ${5} to ${45})`);
             const eco_mode_heat_temperature = Number(Math.round(value)) * 100;
             await entity.write("hvacThermostat", {[attrThermEcoModeHeatTemperature]: {value: eco_mode_heat_temperature, type: 0x29}});
             return {readAfterWriteTime: 250, state: {eco_mode_heat_temperature: value}};
@@ -336,15 +465,61 @@ const tzLocal = {
             await entity.read("hvacThermostat", [attrThermLevel]);
         },
     } satisfies Tz.Converter,
-    thermostat_inversion: {
-        key: ["inversion"],
+    thermostat_screen_sleep_mode: {
+        key: ["screen_sleep_mode"],
         convertSet: async (entity, key, value, meta) => {
-            const inversion = Number(value === "On");
-            await entity.write("hvacThermostat", {[attrThermInversion]: {value: inversion, type: 0x10}});
-            return {readAfterWriteTime: 250, state: {inversion: value}};
+            //utils.assertNumber(value);
+            const lookup = {Off: 0, Dim: 1, On: 2};
+            await entity.write("hvacThermostat", {[attrThermLevel]: {value: utils.getFromLookup(value, lookup), type: 0x30}});
+            return {state: {screen_sleep_mode: value}};
+        },
+        convertGet: async (entity, key, meta) => {
+            await entity.read("hvacThermostat", [attrThermLevel]);
+        },
+    } satisfies Tz.Converter,
+    thermostat_screen_sleep_time: {
+        key: ["screen_sleep_time"],
+        convertSet: async (entity, key, value, meta) => {
+            //utils.assertNumber(value);
+            const lookup = {"10s": 0, "20s": 1, "30s": 2, "40s": 3, "50s": 4, "60s": 5};
+            await entity.write("hvacThermostat", {[attrThermScreenOffTime]: {value: utils.getFromLookup(value, lookup), type: 0x30}});
+            return {state: {screen_sleep_time: value}};
+        },
+        convertGet: async (entity, key, meta) => {
+            await entity.read("hvacThermostat", [attrThermScreenOffTime]);
+        },
+    } satisfies Tz.Converter,
+    thermostat_led_indicator: {
+        key: ["led_indicator"],
+        convertSet: async (entity, key, value, meta) => {
+            const led_indicator = Number(value === "On");
+            await entity.write("hvacThermostat", {[attrThermLedIndicator]: {value: led_indicator, type: 0x10}});
+            return {readAfterWriteTime: 250, state: {led_indicator: value}};
+        },
+        convertGet: async (entity, key, meta) => {
+            await entity.read("hvacThermostat", [attrThermLedIndicator]);
+        },
+    } satisfies Tz.Converter,
+    thermostat_inversion: {
+        key: ["relay_type"],
+        convertSet: async (entity, key, value, meta) => {
+            const relay_type = Number(value === "NO");
+            await entity.write("hvacThermostat", {[attrThermInversion]: {value: relay_type, type: 0x10}});
+            return {readAfterWriteTime: 250, state: {relay_type: value}};
         },
         convertGet: async (entity, key, meta) => {
             await entity.read("hvacThermostat", [attrThermInversion]);
+        },
+    } satisfies Tz.Converter,
+    thermostat_mode_child_lock: {
+        key: ["mode_child_lock"],
+        convertSet: async (entity, key, value, meta) => {
+            const mode_child_lock = Number(value === "all");
+            await entity.write("hvacThermostat", {[attrThermModeKeyLock]: {value: mode_child_lock, type: 0x10}});
+            return {readAfterWriteTime: 250, state: {mode_child_lock: value}};
+        },
+        convertGet: async (entity, key, meta) => {
+            await entity.read("hvacThermostat", [attrThermModeKeyLock]);
         },
     } satisfies Tz.Converter,
     thermostat_schedule_mode: {
@@ -371,7 +546,7 @@ const tzLocal = {
         key: ["external_temperature_calibration"],
         convertSet: async (entity, key, value, meta) => {
             utils.assertNumber(value);
-            if (!utils.isInRange(-9, 9, Number(value))) throw new Error(`Invalid value: ${value} (expected ${-9} to ${9})`);
+            //if (!utils.isInRange(-9, 9, Number(value))) throw new Error(`Invalid value: ${value} (expected ${-9} to ${9})`);
             const external_temperature_calibration = Number(Math.round(value)) * 10;
             await entity.write("hvacThermostat", {[attrThermExtTemperatureCalibration]: {value: external_temperature_calibration, type: 0x28}});
             return {readAfterWriteTime: 250, state: {external_temperature_calibration: value}};
@@ -380,10 +555,32 @@ const tzLocal = {
             await entity.read("hvacThermostat", [attrThermExtTemperatureCalibration]);
         },
     } satisfies Tz.Converter,
+    thermostat_manuf_name: {
+        key: ["manuf_name"],
+        convertSet: async (entity, key, value, meta) => {
+            const lookup = {R00: 0, R01: 1, R02: 2, R03: 3, R04: 4, R05: 5, R06: 6, R07: 7, R08: 8, R09: 9, R0A: 10, R0B: 11, R0C: 12, R0D: 13};
+            await entity.write("hvacThermostat", {[attrThermManufName]: {value: utils.getFromLookup(value, lookup), type: 0x30}});
+            return {state: {manuf_name: value}};
+        },
+        convertGet: async (entity, key, meta) => {
+            await entity.read("hvacThermostat", [attrThermManufName]);
+        },
+    } satisfies Tz.Converter,
+    device_model_number: {
+        key: ["door_device_number", "switch_device_number"],
+        convertSet: async (entity, key, value, meta) => {
+            const lookup = {model_0: 0, model_1: 1, model_2: 2, model_3: 3, model_4: 4, model_5: 5};
+            await entity.write("genOnOffSwitchCfg", {[attrDeviceModelNumber]: {value: utils.getFromLookup(value, lookup), type: 0x30}});
+            return {state: {[key]: value}};
+        },
+        convertGet: async (entity, key, meta) => {
+            await entity.read("genOnOffSwitchCfg", [attrDeviceModelNumber]);
+        },
+    } satisfies Tz.Converter,
 };
 
 const localFromZigbeeThermostat = [
-    fz.ignore_basic_report,
+    fz.humidity,
     fz.thermostat,
     fz.fan,
     fz.namron_hvac_user_interface,
@@ -392,6 +589,7 @@ const localFromZigbeeThermostat = [
     fzLocal.thermostat_schedule,
     fzLocal.display_brightness,
     fzLocal.fancontrol_control,
+    fzLocal.thermostat_humidity_offset,
 ];
 
 const localToZigbeeThermostat = [
@@ -419,16 +617,81 @@ const localToZigbeeThermostat = [
     tzLocal.thermostat_eco_mode_heat_temperature,
     tzLocal.thermostat_frost_protect_onoff,
     tzLocal.thermostat_brightness_level,
+    tzLocal.thermostat_screen_sleep_mode,
+    tzLocal.thermostat_screen_sleep_time,
+    tzLocal.thermostat_led_indicator,
     tzLocal.thermostat_sound,
     tzLocal.thermostat_inversion,
     tzLocal.thermostat_schedule_mode,
     tzLocal.thermostat_settings_reset,
     tzLocal.thermostat_ext_temperature_calibration,
+    tzLocal.thermostat_mode_child_lock,
+    tzLocal.thermostat_manuf_name,
     tzLocal.fancontrol_control,
+    tzLocal.thermostat_humidity_offset,
 ];
 
+interface LocalActionExtendArgs {
+    localAction?: string[]; //("hold" | "single" | "double" | "triple" | "quadruple" | "quintuple" | "release")[];
+    bind?: boolean;
+    reporting?: boolean;
+    reportingConfig?: m.ReportingConfigWithoutAttribute;
+    endpointNames?: string[];
+}
+
+function localActionExtend(args: LocalActionExtendArgs = {}): ModernExtend {
+    const {
+        localAction = ["hold", "single", "double", "triple", "quadruple", "quintuple", "release"],
+        bind = true,
+        reporting = true,
+        reportingConfig = {min: 10, max: 0, change: 1},
+        endpointNames = undefined,
+    } = args;
+    let actions: string[] = localAction;
+
+    if (endpointNames) {
+        actions = localAction.flatMap((c) => endpointNames.map((e) => `${c}_${e}`));
+    }
+    const exposes: Expose[] = [e.enum("action", ea.STATE, actions)];
+
+    const actionPayloadLookup: {[key: number]: string} = {
+        0: "hold",
+        1: "single",
+        2: "double",
+        3: "triple",
+        4: "quadruple",
+        5: "quintuple",
+        255: "release",
+    };
+
+    const fromZigbee = [
+        {
+            cluster: "genMultistateInput",
+            type: ["attributeReport", "readResponse"],
+            convert: (model, msg, publish, options, meta) => {
+                if (utils.hasAlreadyProcessedMessage(msg, model)) return;
+                const value = msg.data.presentValue;
+                //logger.logger.info('msg.data: ' + data[attribute]);
+                if (value === 300) return {action: "N/A"};
+                const payload = {action: utils.postfixWithEndpointName(actionPayloadLookup[value], msg, model, meta)};
+                return payload;
+            },
+        } satisfies Fz.Converter<"genMultistateInput", undefined, ["attributeReport", "readResponse"]>,
+    ];
+    const result: ModernExtend = {exposes, fromZigbee, isModernExtend: true};
+
+    if (reporting)
+        result.configure = [
+            m.setupConfigureForBinding("genMultistateInput", "input", endpointNames),
+            m.setupConfigureForReporting("genMultistateInput", "presentValue", {config: reportingConfig, access: ea.GET, endpointNames}),
+        ];
+    else if (bind) result.configure = [m.setupConfigureForBinding("genMultistateInput", "input", endpointNames)];
+
+    return result;
+}
+
 async function configureCommon(device: Zh.Device, coordinatorEndpoint: Zh.Endpoint, definition: Definition) {
-    //logger.info(definition.model);
+    //logger.info(definition.model, NS);
     const endpoint1 = device.getEndpoint(1);
     const endpoint2 = device.getEndpoint(2);
     await endpoint1.read("hvacUserInterfaceCfg", ["keypadLockout"]);
@@ -458,16 +721,32 @@ async function configureCommon(device: Zh.Device, coordinatorEndpoint: Zh.Endpoi
     await endpoint1.read("hvacThermostat", [attrThermLevel]);
     await endpoint1.read("hvacThermostat", [attrThermInversion]);
     await endpoint1.read("hvacThermostat", [attrThermExtTemperatureCalibration]);
+    if (definition.model === model_r09) {
+        await endpoint1.read("hvacThermostat", [attrThermModeKeyLock]);
+    }
     await endpoint1.read("hvacFanCtrl", ["fanMode"]);
     await endpoint1.read("hvacFanCtrl", [attrFanCtrlControl]);
     await reporting.bind(endpoint1, coordinatorEndpoint, ["hvacThermostat", "hvacUserInterfaceCfg", "hvacFanCtrl"]);
-    if (definition.model === model_r03 || definition.model === model_r04) {
+    if (definition.model === modelR0c) {
+        await reporting.bind(endpoint1, coordinatorEndpoint, ["msRelativeHumidity"]);
+        await endpoint1.read("msRelativeHumidity", ["measuredValue"]);
+        await endpoint1.read("msRelativeHumidity", [attrHumidityOffset]);
+        const payload_humidity = [
+            {attribute: {ID: 0x0000, type: 0x21}, minimumReportInterval: 10, maximumReportInterval: 3600, reportableChange: 10},
+        ];
+        await endpoint1.configureReporting("msRelativeHumidity", payload_humidity);
+        const payload_humidity_offset = [
+            {attribute: {ID: attrHumidityOffset, type: 0x29}, minimumReportInterval: 0, maximumReportInterval: 3600, reportableChange: 0},
+        ];
+        await endpoint1.configureReporting("msRelativeHumidity", payload_humidity_offset);
+    }
+    if (definition.model === model_r03 || definition.model === model_r04 || definition.model === model_r09 || definition.model === modelR0c) {
         await reporting.bind(endpoint1, coordinatorEndpoint, ["genLevelCtrl"]);
         const payloadCurrentLevel = [
             {attribute: {ID: 0x0000, type: 0x20}, minimumReportInterval: 0, maximumReportInterval: 3600, reportableChange: 0},
         ];
         await endpoint1.configureReporting("genLevelCtrl", payloadCurrentLevel);
-        if (definition.model === model_r03) {
+        if (definition.model === model_r03 || definition.model === model_r09) {
             await reporting.bind(endpoint2, coordinatorEndpoint, ["genLevelCtrl"]);
             await endpoint2.configureReporting("genLevelCtrl", payloadCurrentLevel);
         }
@@ -492,7 +771,7 @@ async function configureCommon(device: Zh.Device, coordinatorEndpoint: Zh.Endpoi
     await endpoint1.configureReporting("hvacThermostat", payload_min);
     const payload_max = [{attribute: {ID: 0x0016, type: 0x29}, minimumReportInterval: 0, maximumReportInterval: 3600, reportableChange: 0}];
     await endpoint1.configureReporting("hvacThermostat", payload_max);
-    if (definition.model !== model_r01 && definition.model !== model_r06) {
+    if (definition.model !== model_r01 && definition.model !== model_r06 && definition.model !== model_r0b) {
         const payload_outdoor = [{attribute: {ID: 0x0001, type: 0x29}, minimumReportInterval: 0, maximumReportInterval: 3600, reportableChange: 0}];
         await endpoint1.configureReporting("hvacThermostat", payload_outdoor);
     }
@@ -509,7 +788,7 @@ async function configureCommon(device: Zh.Device, coordinatorEndpoint: Zh.Endpoi
         {attribute: {ID: attrThermHeatProtect, type: 0x29}, minimumReportInterval: 0, maximumReportInterval: 3600, reportableChange: 0},
     ];
     await endpoint1.configureReporting("hvacThermostat", payload_heat_protect);
-    if (definition.model === model_r03 || definition.model === model_r04 || definition.model === model_r07) {
+    if (definition.model === model_r03 || definition.model === model_r04 || definition.model === model_r07 || definition.model === modelR0c) {
         const payload_eco_mode = [
             {attribute: {ID: attrThermEcoMode, type: 0x30}, minimumReportInterval: 0, maximumReportInterval: 3600, reportableChange: 0},
         ];
@@ -562,7 +841,13 @@ async function configureCommon(device: Zh.Device, coordinatorEndpoint: Zh.Endpoi
         ];
         await endpoint1.configureReporting("hvacThermostat", payload_schedule_mode);
     }
-    if (definition.model === model_r08) {
+    if (definition.model === model_r09) {
+        const payload_inversion = [
+            {attribute: {ID: attrThermInversion, type: 0x10}, minimumReportInterval: 0, maximumReportInterval: 3600, reportableChange: 0},
+        ];
+        await endpoint1.configureReporting("hvacThermostat", payload_inversion);
+    }
+    if (definition.model === model_r08 || definition.model === model_r09) {
         const payload_eco_mode = [
             {attribute: {ID: attrThermEcoMode, type: 0x30}, minimumReportInterval: 0, maximumReportInterval: 3600, reportableChange: 0},
         ];
@@ -577,6 +862,66 @@ async function configureCommon(device: Zh.Device, coordinatorEndpoint: Zh.Endpoi
         ];
         await endpoint1.configureReporting("hvacThermostat", payload_ext_temp_calibration);
     }
+}
+
+const energyResetExtend = {
+    energyReset: (): ModernExtend => {
+        const exposes: Expose[] = [e.enum("energy_reset", ea.SET, ["reset"]).withDescription("Reset of accumulated energy")];
+        const toZigbee: Tz.Converter[] = [
+            {
+                key: ["energy_reset"],
+                convertSet: async (entity, key, value, meta) => {
+                    await entity.command("seMetering", 0x80, {}, utils.getOptions(meta.mapped, entity));
+                },
+            },
+        ];
+        //      const fromZigbee = [];
+        return {
+            exposes,
+            fromZigbee: [],
+            toZigbee,
+            isModernExtend: true,
+        };
+    },
+};
+
+function electricityDeviceModel(args: m.EnumLookupArgs<"seMetering", SlackyDiySeMetering>): ModernExtend {
+    const {name, lookup, cluster, attribute, zigbeeCommandOptions} = args;
+    const attributeKey = utils.isString(attribute) ? attribute : attribute.ID;
+    const access = ea[args.access ?? "ALL"];
+    const mExtend = m.enumLookup(args);
+
+    const toZigbee: Tz.Converter[] = [
+        {
+            key: [name],
+            convertSet:
+                access & ea.SET
+                    ? async (entity, key, value, meta) => {
+                          const payloadValue = utils.getFromLookup(value, lookup);
+                          const payload = utils.isString(attribute)
+                              ? {[attribute]: payloadValue}
+                              : {[attribute.ID]: {value: payloadValue, type: attribute.type}};
+                          const ep = utils.determineEndpoint(entity, meta, cluster);
+                          await ep.write(cluster, payload as PartialClusterOrRawWriteAttributes<"seMetering">, zigbeeCommandOptions);
+                          await ep.read("seMetering", ["divisor", "multiplier"]);
+                          await ep.read("haElectricalMeasurement", ["acPowerDivisor", "acPowerMultiplier"]);
+                          await ep.read("haElectricalMeasurement", ["acCurrentDivisor", "acCurrentMultiplier"]);
+                          await ep.read("haElectricalMeasurement", ["acVoltageDivisor", "acVoltageMultiplier"]);
+                          return {state: {[key]: value}};
+                      }
+                    : undefined,
+            convertGet:
+                access & ea.GET
+                    ? async (entity, key, meta) => {
+                          await utils
+                              .determineEndpoint(entity, meta, cluster)
+                              .read(cluster, [attributeKey] as ClusterOrRawAttributeKeys<"seMetering">, zigbeeCommandOptions);
+                      }
+                    : undefined,
+        },
+    ];
+
+    return {...mExtend, toZigbee, isModernExtend: true};
 }
 
 const electricityMeterExtend = {
@@ -597,24 +942,14 @@ const electricityMeterExtend = {
             e.numeric("device_measurement_preset", ea.ALL).withDescription("Measurement Period").withValueMin(1).withValueMax(255),
         ];
         const toZigbee: Tz.Converter[] = [
-            {
-                key: ["energy_tier_1", "energy_tier_2", "energy_tier_3", "energy_tier_4"],
-                convertGet: async (entity, key, meta) => {
-                    await entity.read("seMetering", [
-                        "currentTier1SummDelivered",
-                        "currentTier2SummDelivered",
-                        "currentTier3SummDelivered",
-                        "currentTier4SummDelivered",
-                    ]);
-                },
-                convertSet: async (entity, key, value, meta) => {
-                    return await null;
-                },
-            },
+            tz.currenttier1summdelivered,
+            tz.currenttier2summdelivered,
+            tz.currenttier3summdelivered,
+            tz.currenttier4summdelivered,
             {
                 key: ["model_name"],
                 convertGet: async (entity, key, meta) => {
-                    await entity.read("seMetering", [attrElCityMeterModelName]);
+                    await entity.read<"seMetering", SlackyDiySeMetering>("seMetering", ["deviceName"]);
                 },
                 convertSet: async (entity, key, value, meta) => {
                     return await null;
@@ -632,7 +967,7 @@ const electricityMeterExtend = {
             {
                 key: ["date_release"],
                 convertGet: async (entity, key, meta) => {
-                    await entity.read("seMetering", [attrElCityMeterDateRelease]);
+                    await entity.read<"seMetering", SlackyDiySeMetering>("seMetering", ["dateRelease"]);
                 },
                 convertSet: async (entity, key, value, meta) => {
                     return await null;
@@ -650,8 +985,8 @@ const electricityMeterExtend = {
             {
                 key: ["device_address_preset"],
                 convertSet: async (entity, key, value, meta) => {
-                    const device_address_preset = value;
-                    await entity.write("seMetering", {[attrElCityMeterAddressPreset]: {value: device_address_preset, type: 0x23}});
+                    const device_address_preset = value as number;
+                    await entity.write<"seMetering", SlackyDiySeMetering>("seMetering", {deviceAddress: device_address_preset});
                     return {readAfterWriteTime: 250, state: {device_address_preset: value}};
                 },
             },
@@ -659,141 +994,36 @@ const electricityMeterExtend = {
                 key: ["device_password_preset"],
                 convertSet: async (entity, key, value, meta) => {
                     const device_password_preset = value.toString();
-                    await entity.write("seMetering", {[attrElCityMeterPasswordPreset]: {value: device_password_preset, type: 0x41}});
+                    await entity.write<"seMetering", SlackyDiySeMetering>("seMetering", {devicePassword: device_password_preset});
                     return {readAfterWriteTime: 250, state: {device_password_preset: value}};
                 },
             },
             {
                 key: ["device_measurement_preset"],
                 convertSet: async (entity, key, value, meta) => {
-                    const device_measurement_preset = value;
-                    await entity.write("seMetering", {[attrElCityMeterMeasurementPreset]: {value: device_measurement_preset, type: 0x20}});
+                    const device_measurement_preset = value as number;
+                    await entity.write<"seMetering", SlackyDiySeMetering>("seMetering", {readPeriod: device_measurement_preset});
                     return {readAfterWriteTime: 250, state: {device_measurement_preset: value}};
                 },
                 convertGet: async (entity, key, meta) => {
-                    await entity.read("seMetering", [attrElCityMeterMeasurementPreset]);
+                    await entity.read<"seMetering", SlackyDiySeMetering>("seMetering", ["readPeriod"]);
                 },
             },
         ];
-        const fromZigbee: Fz.Converter[] = [
+        const fromZigbee = [
+            fz.metering,
             {
                 cluster: "seMetering",
                 type: ["attributeReport", "readResponse"],
                 convert: (model, msg, publish, options, meta) => {
                     const result: KeyValueAny = {};
-                    if (msg.data.divisor !== undefined) {
-                        const energyDivisor = Number.parseInt(msg.data.divisor, 10);
-                        globalStore.putValue(meta.device, "energyDivisor", energyDivisor);
-                        result.e_divisor = energyDivisor;
-                    }
-                    return result;
-                },
-            },
-            {
-                cluster: "seMetering",
-                type: ["attributeReport", "readResponse"],
-                convert: (model, msg, publish, options, meta) => {
-                    const result: KeyValueAny = {};
-                    if (msg.data.multiplier !== undefined) {
-                        const energyMultiplier = Number.parseInt(msg.data.multiplier, 10);
-                        globalStore.putValue(meta.device, "energyMultiplier", energyMultiplier);
-                        result.e_multiplier = energyMultiplier;
-                    }
-                    return result;
-                },
-            },
-            {
-                cluster: "seMetering",
-                type: ["attributeReport", "readResponse"],
-                convert: (model, msg, publish, options, meta) => {
-                    const result: KeyValueAny = {};
-                    if (msg.data.currentTier1SummDelivered !== undefined) {
-                        let energyDivisor = globalStore.getValue(meta.device, "energyDivisor");
-                        let energyMultiplier = globalStore.getValue(meta.device, "energyMultiplier");
-                        if (energyDivisor === undefined) {
-                            energyDivisor = 1;
-                        }
-                        if (energyMultiplier === undefined) {
-                            energyMultiplier = 1;
-                        }
-                        const data = msg.data.currentTier1SummDelivered;
-                        result.energy_tier_1 = (Number.parseInt(data, 10) / energyDivisor) * energyMultiplier;
-                    }
-                    return result;
-                },
-            },
-            {
-                cluster: "seMetering",
-                type: ["attributeReport", "readResponse"],
-                convert: (model, msg, publish, options, meta) => {
-                    const result: KeyValueAny = {};
-                    if (msg.data.currentTier2SummDelivered !== undefined) {
-                        let energyDivisor = globalStore.getValue(meta.device, "energyDivisor");
-                        let energyMultiplier = globalStore.getValue(meta.device, "energyMultiplier");
-                        if (energyDivisor === undefined) {
-                            energyDivisor = 1;
-                        }
-                        if (energyMultiplier === undefined) {
-                            energyMultiplier = 1;
-                        }
-                        const data = msg.data.currentTier2SummDelivered;
-                        result.energy_tier_2 = (Number.parseInt(data, 10) / energyDivisor) * energyMultiplier;
-                    }
-                    return result;
-                },
-            },
-            {
-                cluster: "seMetering",
-                type: ["attributeReport", "readResponse"],
-                convert: (model, msg, publish, options, meta) => {
-                    const result: KeyValueAny = {};
-                    if (msg.data.currentTier3SummDelivered !== undefined) {
-                        let energyDivisor = globalStore.getValue(meta.device, "energyDivisor");
-                        let energyMultiplier = globalStore.getValue(meta.device, "energyMultiplier");
-                        if (energyDivisor === undefined) {
-                            energyDivisor = 1;
-                        }
-                        if (energyMultiplier === undefined) {
-                            energyMultiplier = 1;
-                        }
-                        const data = msg.data.currentTier3SummDelivered;
-                        result.energy_tier_3 = (Number.parseInt(data, 10) / energyDivisor) * energyMultiplier;
-                    }
-                    return result;
-                },
-            },
-            {
-                cluster: "seMetering",
-                type: ["attributeReport", "readResponse"],
-                convert: (model, msg, publish, options, meta) => {
-                    const result: KeyValueAny = {};
-                    if (msg.data.currentTier4SummDelivered !== undefined) {
-                        let energyDivisor = globalStore.getValue(meta.device, "energyDivisor");
-                        let energyMultiplier = globalStore.getValue(meta.device, "energyMultiplier");
-                        if (energyDivisor === undefined) {
-                            energyDivisor = 1;
-                        }
-                        if (energyMultiplier === undefined) {
-                            energyMultiplier = 1;
-                        }
-                        const data = msg.data.currentTier4SummDelivered;
-                        result.energy_tier_4 = (Number.parseInt(data, 10) / energyDivisor) * energyMultiplier;
-                    }
-                    return result;
-                },
-            },
-            {
-                cluster: "seMetering",
-                type: ["attributeReport", "readResponse"],
-                convert: (model, msg, publish, options, meta) => {
-                    const result: KeyValueAny = {};
-                    if (msg.data[attrElCityMeterModelName] !== undefined) {
-                        const data = msg.data[attrElCityMeterModelName];
+                    if (msg.data.deviceName !== undefined) {
+                        const data = msg.data.deviceName;
                         result.model_name = data.toString();
                     }
                     return result;
                 },
-            },
+            } satisfies Fz.Converter<"seMetering", SlackyDiySeMetering, ["attributeReport", "readResponse"]>,
             {
                 cluster: "seMetering",
                 type: ["attributeReport", "readResponse"],
@@ -805,19 +1035,19 @@ const electricityMeterExtend = {
                     }
                     return result;
                 },
-            },
+            } satisfies Fz.Converter<"seMetering", undefined, ["attributeReport", "readResponse"]>,
             {
                 cluster: "seMetering",
                 type: ["attributeReport", "readResponse"],
                 convert: (model, msg, publish, options, meta) => {
                     const result: KeyValueAny = {};
-                    if (msg.data[attrElCityMeterDateRelease] !== undefined) {
-                        const data = msg.data[attrElCityMeterDateRelease];
+                    if (msg.data.dateRelease !== undefined) {
+                        const data = msg.data.dateRelease;
                         result.date_release = data.toString();
                     }
                     return result;
                 },
-            },
+            } satisfies Fz.Converter<"seMetering", SlackyDiySeMetering, ["attributeReport", "readResponse"]>,
             {
                 cluster: "seMetering",
                 type: ["attributeReport", "readResponse"],
@@ -825,44 +1055,139 @@ const electricityMeterExtend = {
                     const result: KeyValueAny = {};
                     if (msg.data.status !== undefined) {
                         const data = msg.data.status;
-                        const value = Number.parseInt(data, 10);
                         return {
-                            battery_low: (value & (1 << 1)) > 0,
-                            tamper: (value & (1 << 2)) > 0,
+                            battery_low: (data & (1 << 1)) > 0,
+                            tamper: (data & (1 << 2)) > 0,
                         };
                     }
                     return result;
                 },
-            },
+            } satisfies Fz.Converter<"seMetering", undefined, ["attributeReport", "readResponse"]>,
             {
                 cluster: "seMetering",
                 type: ["attributeReport", "readResponse"],
                 convert: (model, msg, publish, options, meta) => {
                     const result: KeyValueAny = {};
                     if (msg.data.remainingBattLife !== undefined) {
-                        const data = Number.parseInt(msg.data.remainingBattLife, 10);
+                        const data = msg.data.remainingBattLife;
                         result.battery_life = data;
                     }
                     return result;
                 },
-            },
+            } satisfies Fz.Converter<"seMetering", undefined, ["attributeReport", "readResponse"]>,
             {
                 cluster: "seMetering",
                 type: ["readResponse"],
                 convert: (model, msg, publish, options, meta) => {
                     const result: KeyValueAny = {};
-                    if (msg.data[attrElCityMeterMeasurementPreset] !== undefined) {
-                        const data = Number.parseInt(msg.data[attrElCityMeterMeasurementPreset], 10);
-                        result.device_measurement_preset = data;
+                    if (msg.data.readPeriod !== undefined) {
+                        result.device_measurement_preset = msg.data.readPeriod; //data;
                     }
                     return result;
                 },
+            } satisfies Fz.Converter<"seMetering", SlackyDiySeMetering, ["readResponse"]>,
+        ];
+        const configure: Configure[] = [
+            async (device, coordinatorEndpoint, definition) => {
+                const endpoint1 = device.getEndpoint(1);
+                await endpoint1.read("seMetering", ["currentTier1SummDelivered"]);
+                await endpoint1.read("seMetering", ["currentTier2SummDelivered"]);
+                await endpoint1.read("seMetering", ["currentTier3SummDelivered"]);
+                await endpoint1.read("seMetering", ["currentTier4SummDelivered"]);
+                await endpoint1.read("seMetering", ["meterSerialNumber"]);
+                await endpoint1.read<"seMetering", SlackyDiySeMetering>("seMetering", ["deviceName"]);
+                await endpoint1.read<"seMetering", SlackyDiySeMetering>("seMetering", ["readPeriod"]);
+                await endpoint1.read<"seMetering", SlackyDiySeMetering>("seMetering", ["deviceModel"]);
+                await endpoint1.read<"seMetering", SlackyDiySeMetering>("seMetering", ["dateRelease"]);
+                await endpoint1.read("seMetering", ["remainingBattLife", "status"]);
+                await reporting.bind(endpoint1, coordinatorEndpoint, ["seMetering"]);
+                await endpoint1.configureReporting("seMetering", [
+                    {
+                        attribute: "currentTier1SummDelivered",
+                        minimumReportInterval: 0,
+                        maximumReportInterval: 3600,
+                        reportableChange: 0,
+                    },
+                ]);
+                await endpoint1.configureReporting("seMetering", [
+                    {
+                        attribute: "currentTier2SummDelivered",
+                        minimumReportInterval: 0,
+                        maximumReportInterval: 3600,
+                        reportableChange: 0,
+                    },
+                ]);
+                await endpoint1.configureReporting("seMetering", [
+                    {
+                        attribute: "currentTier3SummDelivered",
+                        minimumReportInterval: 0,
+                        maximumReportInterval: 3600,
+                        reportableChange: 0,
+                    },
+                ]);
+                await endpoint1.configureReporting("seMetering", [
+                    {
+                        attribute: "currentTier4SummDelivered",
+                        minimumReportInterval: 0,
+                        maximumReportInterval: 3600,
+                        reportableChange: 0,
+                    },
+                ]);
+                await endpoint1.configureReporting("seMetering", [
+                    {
+                        attribute: "currentSummDelivered",
+                        minimumReportInterval: 0,
+                        maximumReportInterval: 3600,
+                        reportableChange: 0,
+                    },
+                ]);
+                await endpoint1.configureReporting("seMetering", [
+                    {
+                        attribute: "status",
+                        minimumReportInterval: 0,
+                        maximumReportInterval: 3600,
+                        reportableChange: 0,
+                    },
+                ]);
+                await endpoint1.configureReporting("seMetering", [
+                    {
+                        attribute: "remainingBattLife",
+                        minimumReportInterval: 0,
+                        maximumReportInterval: 3600,
+                        reportableChange: 0,
+                    },
+                ]);
+                await endpoint1.configureReporting("seMetering", [
+                    {
+                        attribute: "meterSerialNumber",
+                        minimumReportInterval: 0,
+                        maximumReportInterval: 3600,
+                        reportableChange: 0,
+                    },
+                ]);
+                await endpoint1.configureReporting<"seMetering", SlackyDiySeMetering>("seMetering", [
+                    {
+                        attribute: "dateRelease",
+                        minimumReportInterval: 0,
+                        maximumReportInterval: 3600,
+                        reportableChange: 0,
+                    },
+                ]);
+                await endpoint1.configureReporting<"seMetering", SlackyDiySeMetering>("seMetering", [
+                    {
+                        attribute: "deviceName",
+                        minimumReportInterval: 0,
+                        maximumReportInterval: 3600,
+                        reportableChange: 0,
+                    },
+                ]);
             },
         ];
         return {
             exposes,
             fromZigbee,
             toZigbee,
+            configure,
             isModernExtend: true,
         };
     },
@@ -944,7 +1269,7 @@ const air_extend = {
                     await entity.command(
                         "genLevelCtrl",
                         "moveToLevel",
-                        {level: value as number, transtime: 0},
+                        {level: value as number, transtime: 0, optionsMask: 0, optionsOverride: 0},
                         utils.getOptions(meta.mapped, entity),
                     );
                     return {state: {brightness: value}};
@@ -955,19 +1280,19 @@ const air_extend = {
             },
         ];
 
-        const fromZigbee: Fz.Converter[] = [
+        const fromZigbee = [
             {
                 cluster: "genLevelCtrl",
                 type: ["attributeReport", "readResponse"],
                 convert: (model, msg, publish, options, meta) => {
                     const result: KeyValueAny = {};
                     if (Object.hasOwn(msg.data, "currentLevel")) {
-                        const data = Number.parseInt(msg.data.currentLevel, 10);
+                        const data = msg.data.currentLevel;
                         result.brightness = data;
                     }
                     return result;
                 },
-            },
+            } satisfies Fz.Converter<"genLevelCtrl", undefined, ["attributeReport", "readResponse"]>,
         ];
 
         return {
@@ -1014,11 +1339,9 @@ const air_extend = {
             },
         ];
 
-        const fromZigbee: Fz.Converter[] = [];
-
         return {
             exposes,
-            fromZigbee,
+            fromZigbee: [],
             toZigbee,
             isModernExtend: true,
         };
@@ -1172,73 +1495,58 @@ export const definitions: DefinitionWithExtend[] = [
         model: "Electricity Meter TLSR8258",
         vendor: "Slacky-DIY",
         description: "Electricity Meter via optical port",
-        configure: async (device, coordinatorEndpoint, logger) => {
-            const endpoint1 = device.getEndpoint(1);
-            await endpoint1.read("seMetering", ["remainingBattLife", "status", attrElCityMeterMeasurementPreset]);
-            await endpoint1.read("seMetering", ["divisor"]);
-            await endpoint1.read("seMetering", ["multiplier"]);
-            await endpoint1.read("seMetering", ["currentTier1SummDelivered"]);
-            await endpoint1.read("seMetering", ["currentTier2SummDelivered"]);
-            await endpoint1.read("seMetering", ["currentTier3SummDelivered"]);
-            await endpoint1.read("seMetering", ["currentTier4SummDelivered"]);
-            await endpoint1.read("seMetering", ["currentSummDelivered"]);
-            await endpoint1.read("seMetering", ["meterSerialNumber"]);
-            await endpoint1.read("seMetering", [attrElCityMeterMeasurementPreset]);
-            await endpoint1.read("seMetering", [attrElCityMeterModelName]);
-            //            await endpoint1.read("haElectricalMeasurement", ["acVoltageDivisor"]);
-            //            await endpoint1.read("haElectricalMeasurement", ["acVoltageMultiplier"]);
-            //            await endpoint1.read("haElectricalMeasurement", ["rmsVoltage"]);
-            //            await endpoint1.read("haElectricalMeasurement", ["acCurrentDivisor"]);
-            //            await endpoint1.read("haElectricalMeasurement", ["acCurrentMultiplier"]);
-            //            await endpoint1.read("haElectricalMeasurement", ["instantaneousLineCurrent"]);
-            //            await endpoint1.read("haElectricalMeasurement", ["acPowerDivisor"]);
-            //            await endpoint1.read("haElectricalMeasurement", ["acPowerMultiplier"]);
-            //            await endpoint1.read("haElectricalMeasurement", ["apparentPower"]);
-            await reporting.bind(endpoint1, coordinatorEndpoint, ["seMetering", "haElectricalMeasurement", "genDeviceTempCfg"]);
-            const payload_tier1 = [{attribute: {ID: 0x0100, type: 0x25}, minimumReportInterval: 0, maximumReportInterval: 300, reportableChange: 0}];
-            await endpoint1.configureReporting("seMetering", payload_tier1);
-            const payload_tier2 = [{attribute: {ID: 0x0102, type: 0x25}, minimumReportInterval: 0, maximumReportInterval: 300, reportableChange: 0}];
-            await endpoint1.configureReporting("seMetering", payload_tier2);
-            const payload_tier3 = [{attribute: {ID: 0x0104, type: 0x25}, minimumReportInterval: 0, maximumReportInterval: 300, reportableChange: 0}];
-            await endpoint1.configureReporting("seMetering", payload_tier3);
-            const payload_tier4 = [{attribute: {ID: 0x0106, type: 0x25}, minimumReportInterval: 0, maximumReportInterval: 300, reportableChange: 0}];
-            await endpoint1.configureReporting("seMetering", payload_tier4);
-            await reporting.currentSummDelivered(endpoint1, {min: 0, max: 300, change: 0});
-            const payload_status = [{attribute: {ID: 0x0200, type: 0x18}, minimumReportInterval: 0, maximumReportInterval: 300, reportableChange: 0}];
-            await endpoint1.configureReporting("seMetering", payload_status);
-            const payload_battery_life = [
-                {attribute: {ID: 0x0201, type: 0x20}, minimumReportInterval: 0, maximumReportInterval: 300, reportableChange: 0},
-            ];
-            await endpoint1.configureReporting("seMetering", payload_battery_life);
-            const payload_serial_number = [
-                {attribute: {ID: 0x0308, type: 0x41}, minimumReportInterval: 0, maximumReportInterval: 300, reportableChange: 0},
-            ];
-            await endpoint1.configureReporting("seMetering", payload_serial_number);
-            const payload_date_release = [
-                {attribute: {ID: attrElCityMeterDateRelease, type: 0x41}, minimumReportInterval: 0, maximumReportInterval: 300, reportableChange: 0},
-            ];
-            await endpoint1.configureReporting("seMetering", payload_date_release);
-            const payload_model_name = [
-                {attribute: {ID: attrElCityMeterModelName, type: 0x41}, minimumReportInterval: 0, maximumReportInterval: 300, reportableChange: 0},
-            ];
-            await endpoint1.configureReporting("seMetering", payload_model_name);
-            //            await reporting.rmsVoltage(endpoint1, {min: 0, max: 300, change: 0});
-            //            const payload_current = [
-            //                {attribute: {ID: 0x0501, type: 0x21}, minimumReportInterval: 0, maximumReportInterval: 300, reportableChange: 0},
-            //            ];
-            //            await endpoint1.configureReporting("haElectricalMeasurement", payload_current);
-            //            await reporting.apparentPower(endpoint1, {min: 0, max: 300, change: 0});
-            const payload_temperature = [
-                {attribute: {ID: 0x0000, type: 0x29}, minimumReportInterval: 0, maximumReportInterval: 300, reportableChange: 0},
-            ];
-            await endpoint1.configureReporting("genDeviceTempCfg", payload_temperature);
-        },
         extend: [
+            m.deviceAddCustomCluster("seMetering", {
+                name: "seMetering",
+                ID: 0x0702,
+                attributes: {
+                    deviceModel: {
+                        name: "deviceModel",
+                        ID: attrElCityMeterModelPreset,
+                        type: 0x30,
+                        write: true,
+                        max: 0xff,
+                    },
+                    deviceAddress: {
+                        name: "deviceAddress",
+                        ID: attrElCityMeterAddressPreset,
+                        type: 0x23,
+                        write: true,
+                        max: 0xffffffff,
+                    },
+                    readPeriod: {
+                        name: "readPeriod",
+                        ID: attrElCityMeterMeasurementPreset,
+                        type: 0x20,
+                        write: true,
+                        max: 0xff,
+                    },
+                    dateRelease: {
+                        name: "dateRelease",
+                        ID: attrElCityMeterDateRelease,
+                        type: 0x41,
+                    },
+                    deviceName: {
+                        name: "deviceName",
+                        ID: attrElCityMeterModelName,
+                        type: 0x41,
+                    },
+                    devicePassword: {
+                        name: "devicePassword",
+                        ID: attrElCityMeterPasswordPreset,
+                        write: true,
+                        type: 0x41,
+                    },
+                },
+                commands: {},
+                commandsResponse: {},
+            }),
             m.deviceTemperature(),
             m.electricityMeter(),
             electricityMeterExtend.elMeter(),
-            m.enumLookup({
+            electricityDeviceModel({
                 name: "device_model_preset",
+                access: "STATE_SET",
                 lookup: {
                     no_device: 0,
                     "KASKAD-1-MT (MIRTEK)": 1,
@@ -1248,9 +1556,10 @@ export const definitions: DefinitionWithExtend[] = [
                     "ENERGOMERA-CE208BY": 5,
                     "NEVA-MT124": 6,
                     "NARTIS-100": 7,
+                    "NARTIS-I100": 8,
                 },
                 cluster: "seMetering",
-                attribute: {ID: attrElCityMeterModelPreset, type: 0x30},
+                attribute: "deviceModel",
                 description: "Device Model",
             }),
         ],
@@ -1261,79 +1570,64 @@ export const definitions: DefinitionWithExtend[] = [
         model: "ElectricityMeter-ABC-DIY",
         vendor: "Slacky-DIY",
         description: "Three phase Electricity Meter via optical port",
-        configure: async (device, coordinatorEndpoint, logger) => {
-            const endpoint1 = device.getEndpoint(1);
-            await endpoint1.read("seMetering", ["remainingBattLife", "status", attrElCityMeterMeasurementPreset]);
-            await endpoint1.read("seMetering", ["divisor"]);
-            await endpoint1.read("seMetering", ["multiplier"]);
-            await endpoint1.read("seMetering", ["currentTier1SummDelivered"]);
-            await endpoint1.read("seMetering", ["currentTier2SummDelivered"]);
-            await endpoint1.read("seMetering", ["currentTier3SummDelivered"]);
-            await endpoint1.read("seMetering", ["currentTier4SummDelivered"]);
-            await endpoint1.read("seMetering", ["currentSummDelivered"]);
-            await endpoint1.read("seMetering", ["meterSerialNumber"]);
-            await endpoint1.read("seMetering", [attrElCityMeterMeasurementPreset]);
-            await endpoint1.read("seMetering", [attrElCityMeterModelName]);
-            //            await endpoint1.read("haElectricalMeasurement", ["acVoltageDivisor"]);
-            //            await endpoint1.read("haElectricalMeasurement", ["acVoltageMultiplier"]);
-            //            await endpoint1.read("haElectricalMeasurement", ["rmsVoltage"]);
-            //            await endpoint1.read("haElectricalMeasurement", ["acCurrentDivisor"]);
-            //            await endpoint1.read("haElectricalMeasurement", ["acCurrentMultiplier"]);
-            //            await endpoint1.read("haElectricalMeasurement", ["instantaneousLineCurrent"]);
-            //            await endpoint1.read("haElectricalMeasurement", ["acPowerDivisor"]);
-            //            await endpoint1.read("haElectricalMeasurement", ["acPowerMultiplier"]);
-            //            await endpoint1.read("haElectricalMeasurement", ["apparentPower"]);
-            await reporting.bind(endpoint1, coordinatorEndpoint, ["seMetering", "haElectricalMeasurement", "genDeviceTempCfg"]);
-            const payload_tier1 = [{attribute: {ID: 0x0100, type: 0x25}, minimumReportInterval: 0, maximumReportInterval: 300, reportableChange: 0}];
-            await endpoint1.configureReporting("seMetering", payload_tier1);
-            const payload_tier2 = [{attribute: {ID: 0x0102, type: 0x25}, minimumReportInterval: 0, maximumReportInterval: 300, reportableChange: 0}];
-            await endpoint1.configureReporting("seMetering", payload_tier2);
-            const payload_tier3 = [{attribute: {ID: 0x0104, type: 0x25}, minimumReportInterval: 0, maximumReportInterval: 300, reportableChange: 0}];
-            await endpoint1.configureReporting("seMetering", payload_tier3);
-            const payload_tier4 = [{attribute: {ID: 0x0106, type: 0x25}, minimumReportInterval: 0, maximumReportInterval: 300, reportableChange: 0}];
-            await endpoint1.configureReporting("seMetering", payload_tier4);
-            await reporting.currentSummDelivered(endpoint1, {min: 0, max: 300, change: 0});
-            const payload_status = [{attribute: {ID: 0x0200, type: 0x18}, minimumReportInterval: 0, maximumReportInterval: 300, reportableChange: 0}];
-            await endpoint1.configureReporting("seMetering", payload_status);
-            const payload_battery_life = [
-                {attribute: {ID: 0x0201, type: 0x20}, minimumReportInterval: 0, maximumReportInterval: 300, reportableChange: 0},
-            ];
-            await endpoint1.configureReporting("seMetering", payload_battery_life);
-            const payload_serial_number = [
-                {attribute: {ID: 0x0308, type: 0x41}, minimumReportInterval: 0, maximumReportInterval: 300, reportableChange: 0},
-            ];
-            await endpoint1.configureReporting("seMetering", payload_serial_number);
-            const payload_date_release = [
-                {attribute: {ID: attrElCityMeterDateRelease, type: 0x41}, minimumReportInterval: 0, maximumReportInterval: 300, reportableChange: 0},
-            ];
-            await endpoint1.configureReporting("seMetering", payload_date_release);
-            const payload_model_name = [
-                {attribute: {ID: attrElCityMeterModelName, type: 0x41}, minimumReportInterval: 0, maximumReportInterval: 300, reportableChange: 0},
-            ];
-            await endpoint1.configureReporting("seMetering", payload_model_name);
-            //            await reporting.rmsVoltage(endpoint1, {min: 0, max: 300, change: 0});
-            //            const payload_current = [
-            //                {attribute: {ID: 0x0501, type: 0x21}, minimumReportInterval: 0, maximumReportInterval: 300, reportableChange: 0},
-            //            ];
-            //            await endpoint1.configureReporting("haElectricalMeasurement", payload_current);
-            //            await reporting.apparentPower(endpoint1, {min: 0, max: 300, change: 0});
-            const payload_temperature = [
-                {attribute: {ID: 0x0000, type: 0x29}, minimumReportInterval: 0, maximumReportInterval: 300, reportableChange: 0},
-            ];
-            await endpoint1.configureReporting("genDeviceTempCfg", payload_temperature);
-        },
         extend: [
+            m.deviceAddCustomCluster("seMetering", {
+                name: "seMetering",
+                ID: 0x0702,
+                attributes: {
+                    deviceModel: {
+                        name: "deviceModel",
+                        ID: attrElCityMeterModelPreset,
+                        type: 0x30,
+                        write: true,
+                        max: 0xff,
+                    },
+                    deviceAddress: {
+                        name: "deviceAddress",
+                        ID: attrElCityMeterAddressPreset,
+                        type: 0x23,
+                        write: true,
+                        max: 0xffffffff,
+                    },
+                    readPeriod: {
+                        name: "readPeriod",
+                        ID: attrElCityMeterMeasurementPreset,
+                        type: 0x20,
+                        write: true,
+                        max: 0xff,
+                    },
+                    dateRelease: {
+                        name: "dateRelease",
+                        ID: attrElCityMeterDateRelease,
+                        type: 0x41,
+                    },
+                    deviceName: {
+                        name: "deviceName",
+                        ID: attrElCityMeterModelName,
+                        type: 0x41,
+                    },
+                    devicePassword: {
+                        name: "devicePassword",
+                        ID: attrElCityMeterPasswordPreset,
+                        write: true,
+                        type: 0x41,
+                    },
+                },
+                commands: {},
+                commandsResponse: {},
+            }),
             m.deviceTemperature(),
             m.electricityMeter({threePhase: true}),
             electricityMeterExtend.elMeter(),
-            m.enumLookup({
+            electricityDeviceModel({
                 name: "device_model_preset",
+                access: "STATE_SET",
                 lookup: {
                     no_device: 0,
                     "NARTIS-I300": 1,
                 },
                 cluster: "seMetering",
-                attribute: {ID: attrElCityMeterModelPreset, type: 0x30},
+                attribute: "deviceModel",
                 description: "Device Model",
             }),
         ],
@@ -1350,7 +1644,30 @@ export const definitions: DefinitionWithExtend[] = [
         fromZigbee: localFromZigbeeThermostat,
         toZigbee: localToZigbeeThermostat,
         configure: configureCommon,
-        // Should be empty, unless device can be controlled (e.g. lights, switches).
+        extend: [
+            m.deviceAddCustomCluster("hvacThermostat", {
+                name: "hvacThermostat",
+                ID: 0x0201,
+                attributes: {
+                    localTemperatureCalibration: {
+                        name: "localTemperatureCalibration",
+                        ID: 0x0010,
+                        type: 0x28,
+                        write: true,
+                        max: 0xff,
+                    },
+                    minSetpointDeadBand: {
+                        name: "minSetpointDeadBand",
+                        ID: 0x0019,
+                        type: 0x28,
+                        write: true,
+                        max: 0xff,
+                    },
+                },
+                commands: {},
+                commandsResponse: {},
+            }),
+        ],
         exposes: [
             e.binary("child_lock", ea.ALL, "LOCK", "UNLOCK").withDescription("Enables/disables physical input on the device"),
             e.programming_operation_mode(["setpoint", "schedule"]).withDescription("Setpoint or Schedule mode"),
@@ -1395,7 +1712,30 @@ export const definitions: DefinitionWithExtend[] = [
         fromZigbee: localFromZigbeeThermostat,
         toZigbee: localToZigbeeThermostat,
         configure: configureCommon,
-        // Should be empty, unless device can be controlled (e.g. lights, switches).
+        extend: [
+            m.deviceAddCustomCluster("hvacThermostat", {
+                name: "hvacThermostat",
+                ID: 0x0201,
+                attributes: {
+                    localTemperatureCalibration: {
+                        name: "localTemperatureCalibration",
+                        ID: 0x0010,
+                        type: 0x28,
+                        write: true,
+                        max: 0xff,
+                    },
+                    minSetpointDeadBand: {
+                        name: "minSetpointDeadBand",
+                        ID: 0x0019,
+                        type: 0x28,
+                        write: true,
+                        max: 0xff,
+                    },
+                },
+                commands: {},
+                commandsResponse: {},
+            }),
+        ],
         exposes: [
             e.binary("child_lock", ea.ALL, "LOCK", "UNLOCK").withDescription("Enables/disables physical input on the device"),
             e.programming_operation_mode(["setpoint", "schedule"]).withDescription("Setpoint or Schedule mode"),
@@ -1466,7 +1806,30 @@ export const definitions: DefinitionWithExtend[] = [
         fromZigbee: localFromZigbeeThermostat,
         toZigbee: localToZigbeeThermostat,
         configure: configureCommon,
-        // Should be empty, unless device can be controlled (e.g. lights, switches).
+        extend: [
+            m.deviceAddCustomCluster("hvacThermostat", {
+                name: "hvacThermostat",
+                ID: 0x0201,
+                attributes: {
+                    localTemperatureCalibration: {
+                        name: "localTemperatureCalibration",
+                        ID: 0x0010,
+                        type: 0x28,
+                        write: true,
+                        max: 0xff,
+                    },
+                    minSetpointDeadBand: {
+                        name: "minSetpointDeadBand",
+                        ID: 0x0019,
+                        type: 0x28,
+                        write: true,
+                        max: 0xff,
+                    },
+                },
+                commands: {},
+                commandsResponse: {},
+            }),
+        ],
         exposes: [
             e.binary("child_lock", ea.ALL, "LOCK", "UNLOCK").withDescription("Enables/disables physical input on the device"),
             e.programming_operation_mode(["setpoint", "schedule"]).withDescription("Setpoint or Schedule mode"),
@@ -1547,7 +1910,30 @@ export const definitions: DefinitionWithExtend[] = [
         fromZigbee: localFromZigbeeThermostat,
         toZigbee: localToZigbeeThermostat,
         configure: configureCommon,
-        // Should be empty, unless device can be controlled (e.g. lights, switches).
+        extend: [
+            m.deviceAddCustomCluster("hvacThermostat", {
+                name: "hvacThermostat",
+                ID: 0x0201,
+                attributes: {
+                    localTemperatureCalibration: {
+                        name: "localTemperatureCalibration",
+                        ID: 0x0010,
+                        type: 0x28,
+                        write: true,
+                        max: 0xff,
+                    },
+                    minSetpointDeadBand: {
+                        name: "minSetpointDeadBand",
+                        ID: 0x0019,
+                        type: 0x28,
+                        write: true,
+                        max: 0xff,
+                    },
+                },
+                commands: {},
+                commandsResponse: {},
+            }),
+        ],
         exposes: [
             e.binary("child_lock", ea.ALL, "LOCK", "UNLOCK").withDescription("Enables/disables physical input on the device"),
             e.programming_operation_mode(["setpoint", "schedule"]).withDescription("Setpoint or Schedule mode"),
@@ -1627,7 +2013,30 @@ export const definitions: DefinitionWithExtend[] = [
         fromZigbee: localFromZigbeeThermostat,
         toZigbee: localToZigbeeThermostat,
         configure: configureCommon,
-        // Should be empty, unless device can be controlled (e.g. lights, switches).
+        extend: [
+            m.deviceAddCustomCluster("hvacThermostat", {
+                name: "hvacThermostat",
+                ID: 0x0201,
+                attributes: {
+                    localTemperatureCalibration: {
+                        name: "localTemperatureCalibration",
+                        ID: 0x0010,
+                        type: 0x28,
+                        write: true,
+                        max: 0xff,
+                    },
+                    minSetpointDeadBand: {
+                        name: "minSetpointDeadBand",
+                        ID: 0x0019,
+                        type: 0x28,
+                        write: true,
+                        max: 0xff,
+                    },
+                },
+                commands: {},
+                commandsResponse: {},
+            }),
+        ],
         exposes: [
             e.binary("child_lock", ea.ALL, "LOCK", "UNLOCK").withDescription("Enables/disables physical input on the device"),
             e.programming_operation_mode(["setpoint", "schedule"]).withDescription("Setpoint or Schedule mode"),
@@ -1691,15 +2100,39 @@ export const definitions: DefinitionWithExtend[] = [
         fromZigbee: localFromZigbeeThermostat,
         toZigbee: localToZigbeeThermostat,
         configure: configureCommon,
+        extend: [
+            m.deviceAddCustomCluster("hvacThermostat", {
+                name: "hvacThermostat",
+                ID: 0x0201,
+                attributes: {
+                    localTemperatureCalibration: {
+                        name: "localTemperatureCalibration",
+                        ID: 0x0010,
+                        type: 0x28,
+                        write: true,
+                        max: 0xff,
+                    },
+                    minSetpointDeadBand: {
+                        name: "minSetpointDeadBand",
+                        ID: 0x0019,
+                        type: 0x28,
+                        write: true,
+                        max: 0xff,
+                    },
+                },
+                commands: {},
+                commandsResponse: {},
+            }),
+        ],
         exposes: [
             e.binary("child_lock", ea.ALL, "LOCK", "UNLOCK").withDescription("Enables/disables physical input on the device"),
             e.binary("sound", ea.ALL, "On", "Off").withDescription("Sound On/Off"),
-            e.binary("inversion", ea.ALL, "On", "Off").withDescription("Inversion of the output"),
+            e.binary("relay_type", ea.ALL, "NC", "NO").withDescription("Relay type NC/NO"),
             e.enum("brightness_level", ea.ALL, ["Off", "Low", "Medium", "High"]).withDescription("Screen brightness"),
             e.programming_operation_mode(["setpoint", "schedule"]).withDescription("Setpoint or Schedule mode"),
             e.enum("sensor", ea.ALL, switchSensorUsed).withDescription("Select temperature sensor to use"),
             e
-                .numeric("histeresis_temperature", ea.ALL)
+                .numeric("hysteresis_temperature", ea.ALL)
                 .withDescription("The delta between local_temperature and current_heating_setpoint to trigger activity")
                 .withUnit("°C")
                 .withValueMin(0.5)
@@ -1747,7 +2180,30 @@ export const definitions: DefinitionWithExtend[] = [
         fromZigbee: localFromZigbeeThermostat,
         toZigbee: localToZigbeeThermostat,
         configure: configureCommon,
-        // Should be empty, unless device can be controlled (e.g. lights, switches).
+        extend: [
+            m.deviceAddCustomCluster("hvacThermostat", {
+                name: "hvacThermostat",
+                ID: 0x0201,
+                attributes: {
+                    localTemperatureCalibration: {
+                        name: "localTemperatureCalibration",
+                        ID: 0x0010,
+                        type: 0x28,
+                        write: true,
+                        max: 0xff,
+                    },
+                    minSetpointDeadBand: {
+                        name: "minSetpointDeadBand",
+                        ID: 0x0019,
+                        type: 0x28,
+                        write: true,
+                        max: 0xff,
+                    },
+                },
+                commands: {},
+                commandsResponse: {},
+            }),
+        ],
         exposes: [
             e.binary("child_lock", ea.ALL, "LOCK", "UNLOCK").withDescription("Enables/disables physical input on the device"),
             e.programming_operation_mode(["setpoint", "schedule"]).withDescription("Setpoint or Schedule mode"),
@@ -1819,6 +2275,30 @@ export const definitions: DefinitionWithExtend[] = [
         fromZigbee: localFromZigbeeThermostat,
         toZigbee: localToZigbeeThermostat,
         configure: configureCommon,
+        extend: [
+            m.deviceAddCustomCluster("hvacThermostat", {
+                name: "hvacThermostat",
+                ID: 0x0201,
+                attributes: {
+                    localTemperatureCalibration: {
+                        name: "localTemperatureCalibration",
+                        ID: 0x0010,
+                        type: 0x28,
+                        write: true,
+                        max: 0xff,
+                    },
+                    minSetpointDeadBand: {
+                        name: "minSetpointDeadBand",
+                        ID: 0x0019,
+                        type: 0x28,
+                        write: true,
+                        max: 0xff,
+                    },
+                },
+                commands: {},
+                commandsResponse: {},
+            }),
+        ],
         exposes: [
             e.binary("child_lock", ea.ALL, "LOCK", "UNLOCK").withDescription("Enables/disables physical input on the device"),
             e.programming_operation_mode(["setpoint", "schedule"]).withDescription("Setpoint or Schedule mode"),
@@ -1848,7 +2328,7 @@ export const definitions: DefinitionWithExtend[] = [
                 .climate()
                 .withLocalTemperature()
                 .withSetpoint("occupied_heating_setpoint", 5, 45, 0.5)
-                .withLocalTemperatureCalibration(-9.9, 9.9, 1)
+                .withLocalTemperatureCalibration(-9, 9, 1)
                 .withSystemMode(["off", "heat"])
                 .withRunningState(["idle", "heat"], ea.STATE)
                 .withWeeklySchedule(["heat"], ea.ALL),
@@ -1860,35 +2340,514 @@ export const definitions: DefinitionWithExtend[] = [
         ota: true,
     },
     {
-        zigbeeModel: ["TS0201-z-SlD"],
+        zigbeeModel: ["Tuya_Thermostat_r09"],
+        model: "THERM_SLACKY_DIY_R09",
+        vendor: "Slacky-DIY",
+        description: "Tuya Thermostat for Floor Heating with custom Firmware",
+        endpoint: (device) => {
+            return {day: 1, night: 2};
+        },
+        fromZigbee: localFromZigbeeThermostat,
+        toZigbee: localToZigbeeThermostat,
+        configure: configureCommon,
+        extend: [
+            m.deviceAddCustomCluster("hvacThermostat", {
+                name: "hvacThermostat",
+                ID: 0x0201,
+                attributes: {
+                    localTemperatureCalibration: {
+                        name: "localTemperatureCalibration",
+                        ID: 0x0010,
+                        type: 0x28,
+                        write: true,
+                        max: 0xff,
+                    },
+                    minSetpointDeadBand: {
+                        name: "minSetpointDeadBand",
+                        ID: 0x0019,
+                        type: 0x28,
+                        write: true,
+                        max: 0xff,
+                    },
+                },
+                commands: {},
+                commandsResponse: {},
+            }),
+        ],
+        exposes: [
+            e.binary("child_lock", ea.ALL, "LOCK", "UNLOCK").withDescription("Enables/disables physical input on the device"),
+            e.binary("mode_child_lock", ea.ALL, "partial", "all").withDescription("Child lock mode - all/partial"),
+            e.binary("relay_type", ea.ALL, "NC", "NO").withDescription("Relay type NC/NO"),
+            e.programming_operation_mode(["setpoint", "schedule"]).withDescription("Setpoint or Schedule mode"),
+            e.enum("sensor", ea.ALL, switchSensorUsed).withDescription("Select temperature sensor to use"),
+            e
+                .numeric("hysteresis_temperature", ea.ALL)
+                .withDescription("The delta between local_temperature and current_heating_setpoint to trigger activity")
+                .withUnit("°C")
+                .withValueMin(1)
+                .withValueMax(5)
+                .withValueStep(0.5),
+            e
+                .numeric("min_heat_setpoint_limit", ea.ALL)
+                .withUnit("°C")
+                .withDescription("Minimum Heating set point limit")
+                .withValueMin(5)
+                .withValueMax(15)
+                .withValueStep(1),
+            e
+                .numeric("max_heat_setpoint_limit", ea.ALL)
+                .withDescription("Maximum Heating set point limit")
+                .withUnit("°C")
+                .withValueMin(15)
+                .withValueMax(45)
+                .withValueStep(1),
+            e
+                .numeric("frost_protect", ea.ALL)
+                .withUnit("°C")
+                .withDescription("Protection against minimum freezing temperature")
+                .withValueMin(0)
+                .withValueMax(10)
+                .withValueStep(1),
+            e
+                .numeric("heat_protect", ea.ALL)
+                .withUnit("°C")
+                .withDescription("Protection against maximum heating temperature")
+                .withValueMin(25)
+                .withValueMax(70)
+                .withValueStep(1),
+            e.numeric("brightness", ea.ALL).withValueMin(0).withValueMax(8).withDescription("Screen brightness 06:00 - 22:00").withEndpoint("day"),
+            e.numeric("brightness", ea.ALL).withValueMin(0).withValueMax(8).withDescription("Screen brightness 22:00 - 06:00").withEndpoint("night"),
+            e.binary("eco_mode", ea.ALL, "On", "Off").withDescription("On/Off Sleep Mode"),
+            e
+                .numeric("eco_mode_heat_temperature", ea.ALL)
+                .withUnit("°C")
+                .withDescription("Set heat temperature in eco mode")
+                .withValueMin(5)
+                .withValueMax(45)
+                .withValueStep(1),
+            e
+                .numeric("external_temperature_calibration", ea.ALL)
+                .withDescription("External temperature calibration")
+                .withUnit("°C")
+                .withValueMin(-9)
+                .withValueMax(9)
+                .withValueStep(1),
+            e.numeric("outdoor_temperature", ea.STATE_GET).withUnit("°C").withDescription("Current temperature measured from the floor outer sensor"),
+            e
+                .climate()
+                .withLocalTemperature()
+                .withSetpoint("occupied_heating_setpoint", 5, 45, 0.5)
+                .withLocalTemperatureCalibration(-9, 9, 1)
+                .withSystemMode(["off", "heat"])
+                .withRunningState(["idle", "heat"], ea.STATE)
+                .withWeeklySchedule(["heat"], ea.ALL),
+            e.text("schedule_monday", ea.STATE).withDescription("Monday's schedule"),
+            e.text("schedule_tuesday", ea.STATE).withDescription("Tuesday's schedule"),
+            e.text("schedule_wednesday", ea.STATE).withDescription("Wednesday's schedule"),
+            e.text("schedule_thursday", ea.STATE).withDescription("Thursday's schedule"),
+            e.text("schedule_friday", ea.STATE).withDescription("Friday's schedule"),
+            e.text("schedule_saturday", ea.STATE).withDescription("Saturday's schedule"),
+            e.text("schedule_sunday", ea.STATE).withDescription("Sunday's schedule"),
+            e.enum("settings_reset", ea.SET, ["Default"]).withDescription("Default settings"),
+        ],
+        meta: {},
+        ota: true,
+    },
+    {
+        zigbeeModel: ["Tuya_Thermostat_r0A"],
+        model: "THERM_SLACKY_DIY_R0A",
+        vendor: "Slacky-DIY",
+        description: "Tuya Thermostat for Floor Heating with custom Firmware",
+        endpoint: (device) => {
+            return {day: 1, night: 2};
+        },
+        fromZigbee: localFromZigbeeThermostat,
+        toZigbee: localToZigbeeThermostat,
+        configure: configureCommon,
+        extend: [
+            m.deviceAddCustomCluster("hvacThermostat", {
+                name: "hvacThermostat",
+                ID: 0x0201,
+                attributes: {
+                    localTemperatureCalibration: {
+                        name: "localTemperatureCalibration",
+                        ID: 0x0010,
+                        type: 0x28,
+                        write: true,
+                        max: 0xff,
+                    },
+                    minSetpointDeadBand: {
+                        name: "minSetpointDeadBand",
+                        ID: 0x0019,
+                        type: 0x28,
+                        write: true,
+                        max: 0xff,
+                    },
+                },
+                commands: {},
+                commandsResponse: {},
+            }),
+        ],
+        exposes: [
+            e.binary("child_lock", ea.ALL, "LOCK", "UNLOCK").withDescription("Enables/disables physical input on the device"),
+            e.programming_operation_mode(["setpoint", "schedule"]).withDescription("Setpoint or Schedule mode"),
+            e.enum("sensor", ea.ALL, switchSensorUsed).withDescription("Select temperature sensor to use"),
+            e
+                .numeric("deadzone_temperature", ea.ALL)
+                .withDescription("The delta between local_temperature and current_heating_setpoint to trigger activity")
+                .withUnit("°C")
+                .withValueMin(1)
+                .withValueMax(5)
+                .withValueStep(1),
+            e
+                .numeric("min_heat_setpoint_limit", ea.ALL)
+                .withUnit("°C")
+                .withDescription("Minimum Heating set point limit")
+                .withValueMin(0)
+                .withValueMax(20)
+                .withValueStep(1),
+            e
+                .numeric("max_heat_setpoint_limit", ea.ALL)
+                .withDescription("Maximum Heating set point limit")
+                .withUnit("°C")
+                .withValueMin(20)
+                .withValueMax(50)
+                .withValueStep(1),
+            e
+                .numeric("heat_protect", ea.ALL)
+                .withUnit("°C")
+                .withDescription("Protection against maximum heating temperature")
+                .withValueMin(25)
+                .withValueMax(70)
+                .withValueStep(1),
+            e.binary("eco_mode", ea.ALL, "On", "Off").withDescription("On/Off Eco Mode"),
+            e
+                .climate()
+                .withLocalTemperature()
+                .withSetpoint("occupied_heating_setpoint", 1, 50, 1)
+                .withLocalTemperatureCalibration(-9, 9, 1)
+                .withSystemMode(["off", "heat"])
+                .withRunningState(["idle", "heat"], ea.STATE)
+                .withWeeklySchedule(["heat"], ea.ALL),
+            e.text("schedule_monday", ea.STATE).withDescription("Schedule for the working week"),
+            e.text("schedule_saturday", ea.STATE).withDescription("Saturday's schedule"),
+            e.text("schedule_sunday", ea.STATE).withDescription("Sunday's schedule"),
+        ],
+        meta: {},
+        ota: true,
+    },
+    {
+        zigbeeModel: ["Tuya_Thermostat_r0B"],
+        model: "THERM_SLACKY_DIY_R0B",
+        vendor: "Slacky-DIY",
+        description: "Tuya Thermostat for Floor Heating with custom Firmware",
+        endpoint: (device) => {
+            return {day: 1, night: 2};
+        },
+        fromZigbee: localFromZigbeeThermostat,
+        toZigbee: localToZigbeeThermostat,
+        configure: configureCommon,
+        extend: [
+            m.deviceAddCustomCluster("hvacThermostat", {
+                name: "hvacThermostat",
+                ID: 0x0201,
+                attributes: {
+                    localTemperatureCalibration: {
+                        name: "localTemperatureCalibration",
+                        ID: 0x0010,
+                        type: 0x28,
+                        write: true,
+                        max: 0xff,
+                    },
+                    minSetpointDeadBand: {
+                        name: "minSetpointDeadBand",
+                        ID: 0x0019,
+                        type: 0x28,
+                        write: true,
+                        max: 0xff,
+                    },
+                },
+                commands: {},
+                commandsResponse: {},
+            }),
+        ],
+        exposes: [
+            e.binary("child_lock", ea.ALL, "LOCK", "UNLOCK").withDescription("Enables/disables physical input on the device"),
+            e.programming_operation_mode(["setpoint", "schedule"]).withDescription("Setpoint or Schedule mode"),
+            e.enum("sensor", ea.ALL, ["Inner (IN)", "Outer (OU)"]).withDescription("Select temperature sensor to use"),
+            e.enum("screen_sleep_mode", ea.ALL, ["Off", "Dim", "On"]).withDescription("Screen sleep mode of brightness"),
+            e
+                .numeric("hysteresis_temperature", ea.ALL)
+                .withDescription("The delta between local_temperature and current_heating_setpoint to trigger activity")
+                .withUnit("°C")
+                .withValueMin(0.5)
+                .withValueMax(5)
+                .withValueStep(0.5),
+            e
+                .numeric("min_heat_setpoint_limit", ea.ALL)
+                .withUnit("°C")
+                .withDescription("Minimum Heating set point limit")
+                .withValueMin(1)
+                .withValueMax(5)
+                .withValueStep(0.5),
+            e
+                .numeric("max_heat_setpoint_limit", ea.ALL)
+                .withDescription("Maximum Heating set point limit")
+                .withUnit("°C")
+                .withValueMin(35)
+                .withValueMax(50)
+                .withValueStep(0.5),
+            e
+                .climate()
+                .withLocalTemperature()
+                .withSetpoint("occupied_heating_setpoint", 1, 50, 0.5)
+                .withLocalTemperatureCalibration(-9, 9, 1)
+                .withSystemMode(["off", "heat"])
+                .withRunningState(["idle", "heat"], ea.STATE)
+                .withWeeklySchedule(["heat"], ea.ALL),
+            e.text("schedule_monday", ea.STATE).withDescription("Schedule for the working week"),
+            e.text("schedule_saturday", ea.STATE).withDescription("Saturday's schedule"),
+            e.text("schedule_sunday", ea.STATE).withDescription("Sunday's schedule"),
+        ],
+        meta: {},
+        ota: true,
+    },
+    {
+        zigbeeModel: ["Tuya_Thermostat_r0C"],
+        model: "THERM_SLACKY_DIY_R0C",
+        vendor: "Slacky-DIY",
+        description: "Tuya Thermostat for Floor Heating with custom Firmware",
+        endpoint: (device) => {
+            return {day: 1, night: 2};
+        },
+        fromZigbee: localFromZigbeeThermostat,
+        toZigbee: localToZigbeeThermostat,
+        configure: configureCommon,
+        extend: [
+            m.deviceAddCustomCluster("hvacThermostat", {
+                name: "hvacThermostat",
+                ID: 0x0201,
+                attributes: {
+                    localTemperatureCalibration: {
+                        name: "localTemperatureCalibration",
+                        ID: 0x0010,
+                        type: 0x28,
+                        write: true,
+                        max: 0xff,
+                    },
+                    minSetpointDeadBand: {
+                        name: "minSetpointDeadBand",
+                        ID: 0x0019,
+                        type: 0x28,
+                        write: true,
+                        max: 0xff,
+                    },
+                },
+                commands: {},
+                commandsResponse: {},
+            }),
+        ],
+        exposes: [
+            e.binary("child_lock", ea.ALL, "LOCK", "UNLOCK").withDescription("Enables/disables physical input on the device"),
+            e.programming_operation_mode(["setpoint", "schedule"]).withDescription("Setpoint or Schedule mode"),
+            e.enum("sensor", ea.ALL, switchSensorUsed).withDescription("Select temperature sensor to use"),
+            e
+                .numeric("deadzone_temperature", ea.ALL)
+                .withDescription("The delta between local_temperature and current_heating_setpoint to trigger activity")
+                .withUnit("°C")
+                .withValueMin(1)
+                .withValueMax(5)
+                .withValueStep(1),
+            e
+                .numeric("min_heat_setpoint_limit", ea.ALL)
+                .withUnit("°C")
+                .withDescription("Minimum Heating set point limit")
+                .withValueMin(5)
+                .withValueMax(15)
+                .withValueStep(1),
+            e
+                .numeric("max_heat_setpoint_limit", ea.ALL)
+                .withDescription("Maximum Heating set point limit")
+                .withUnit("°C")
+                .withValueMin(15)
+                .withValueMax(45)
+                .withValueStep(1),
+            e
+                .numeric("frost_protect", ea.ALL)
+                .withUnit("°C")
+                .withDescription("Protection against minimum freezing temperature")
+                .withValueMin(0)
+                .withValueMax(10)
+                .withValueStep(1),
+            e
+                .numeric("heat_protect", ea.ALL)
+                .withUnit("°C")
+                .withDescription("Protection against maximum heating temperature")
+                .withValueMin(25)
+                .withValueMax(70)
+                .withValueStep(1),
+            e.numeric("brightness", ea.ALL).withValueMin(0).withValueMax(9).withDescription("Screen brightness").withEndpoint("day"),
+            e.binary("eco_mode", ea.ALL, "On", "Off").withDescription("On/Off Eco Mode"),
+            e
+                .numeric("eco_mode_heat_temperature", ea.ALL)
+                .withUnit("°C")
+                .withDescription("Set heat temperature in eco mode")
+                .withValueMin(5)
+                .withValueMax(45)
+                .withValueStep(1),
+            e.humidity(),
+            e
+                .numeric("humidity_offset", ea.ALL)
+                .withUnit("%")
+                .withDescription("Offset to add/subtract to the inside humidity")
+                .withValueMin(-95)
+                .withValueMax(95)
+                .withValueStep(1),
+            e.numeric("outdoor_temperature", ea.STATE_GET).withUnit("°C").withDescription("Current temperature measured from the floor outer sensor"),
+            e
+                .climate()
+                .withLocalTemperature()
+                .withSetpoint("occupied_heating_setpoint", 5, 45, 0.5)
+                .withLocalTemperatureCalibration(-9, 9, 1)
+                .withSystemMode(["off", "heat"])
+                .withRunningState(["idle", "heat"], ea.STATE)
+                .withWeeklySchedule(["heat"], ea.ALL),
+            e.text("schedule_monday", ea.STATE).withDescription("Monday's schedule"),
+            e.text("schedule_tuesday", ea.STATE).withDescription("Tuesday's schedule"),
+            e.text("schedule_wednesday", ea.STATE).withDescription("Wednesday's schedule"),
+            e.text("schedule_thursday", ea.STATE).withDescription("Thursday's schedule"),
+            e.text("schedule_friday", ea.STATE).withDescription("Friday's schedule"),
+            e.text("schedule_saturday", ea.STATE).withDescription("Saturday's schedule"),
+            e.text("schedule_sunday", ea.STATE).withDescription("Sunday's schedule"),
+        ],
+        meta: {},
+        ota: true,
+    },
+    {
+        zigbeeModel: ["Tuya_Thermostat_r0D"],
+        model: "THERM_SLACKY_DIY_R0D",
+        vendor: "Slacky-DIY",
+        description: "Tuya Thermostat for Floor Heating with custom Firmware",
+        endpoint: (device) => {
+            return {day: 1, night: 2};
+        },
+        fromZigbee: localFromZigbeeThermostat,
+        toZigbee: localToZigbeeThermostat,
+        configure: configureCommon,
+        extend: [
+            m.deviceAddCustomCluster("hvacThermostat", {
+                name: "hvacThermostat",
+                ID: 0x0201,
+                attributes: {
+                    localTemperatureCalibration: {
+                        name: "localTemperatureCalibration",
+                        ID: 0x0010,
+                        type: 0x28,
+                        write: true,
+                        max: 0xff,
+                    },
+                    minSetpointDeadBand: {
+                        name: "minSetpointDeadBand",
+                        ID: 0x0019,
+                        type: 0x28,
+                        write: true,
+                        max: 0xff,
+                    },
+                },
+                commands: {},
+                commandsResponse: {},
+            }),
+        ],
+        exposes: [
+            e.binary("child_lock", ea.ALL, "LOCK", "UNLOCK").withDescription("Enables/disables physical input on the device"),
+            e.enum("brightness_level", ea.ALL, ["Off", "Low", "Medium", "High"]).withDescription("Screen idle brightness"),
+            e.enum("screen_sleep_time", ea.ALL, ["10s", "20s", "30s", "40s", "50s", "60s"]).withDescription("Screen sleep timeout"),
+            e.binary("led_indicator", ea.ALL, "On", "Off").withDescription("Enables/disables light ring indicator"),
+            e.programming_operation_mode(["setpoint", "schedule", "schedule_with_preheat", "eco"]).withDescription("Setpoint or Schedule mode"),
+            e
+                .numeric("hysteresis_temperature", ea.ALL)
+                .withDescription("The delta between local_temperature and current_heating_setpoint to trigger activity")
+                .withUnit("°C")
+                .withValueMin(0.5)
+                .withValueMax(5)
+                .withValueStep(0.5),
+            e
+                .numeric("min_heat_setpoint_limit", ea.ALL)
+                .withUnit("°C")
+                .withDescription("Minimum Heating set point limit")
+                .withValueMin(5)
+                .withValueMax(15)
+                .withValueStep(1),
+            e
+                .numeric("max_heat_setpoint_limit", ea.ALL)
+                .withDescription("Maximum Heating set point limit")
+                .withUnit("°C")
+                .withValueMin(35)
+                .withValueMax(45)
+                .withValueStep(1),
+            e
+                .numeric("frost_protect", ea.ALL)
+                .withUnit("°C")
+                .withDescription("Protection against minimum freezing temperature")
+                .withValueMin(0)
+                .withValueMax(10)
+                .withValueStep(1),
+            e
+                .numeric("heat_protect", ea.ALL)
+                .withUnit("°C")
+                .withDescription("Protection against maximum heating temperature")
+                .withValueMin(10)
+                .withValueMax(70)
+                .withValueStep(1),
+            e
+                .numeric("eco_mode_cool_temperature", ea.ALL)
+                .withUnit("°C")
+                .withDescription("Set cool temperature in eco mode")
+                .withValueMin(10)
+                .withValueMax(30)
+                .withValueStep(1),
+            e.enum("sensor", ea.ALL, switchSensorUsed).withDescription("Select temperature sensor to use"),
+            e.numeric("outdoor_temperature", ea.STATE_GET).withUnit("°C").withDescription("Current temperature measured from the floor outer sensor"),
+            e
+                .climate()
+                .withLocalTemperature()
+                .withSetpoint("occupied_heating_setpoint", 5, 45, 1)
+                .withLocalTemperatureCalibration(-10, 10, 1)
+                .withSystemMode(["off", "heat"])
+                .withRunningState(["idle", "heat"], ea.STATE)
+                .withWeeklySchedule(["heat"], ea.ALL),
+            e.text("schedule_monday", ea.STATE).withDescription("Monday's schedule"),
+            e.text("schedule_tuesday", ea.STATE).withDescription("Tuesday's schedule"),
+            e.text("schedule_wednesday", ea.STATE).withDescription("Wednesday's schedule"),
+            e.text("schedule_thursday", ea.STATE).withDescription("Thursday's schedule"),
+            e.text("schedule_friday", ea.STATE).withDescription("Friday's schedule"),
+            e.text("schedule_saturday", ea.STATE).withDescription("Saturday's schedule"),
+            e.text("schedule_sunday", ea.STATE).withDescription("Sunday's schedule"),
+            e.enum("settings_reset", ea.SET, ["Default"]).withDescription("Default settings"),
+        ],
+        meta: {},
+        ota: true,
+    },
+    {
+        zigbeeModel: ["TS0201-z-SlD", "TS0201-z15-SlD", "TS0201-z21-SlD", "TS0201-z22-SlD", "TS0201-z23-SlD", "TS0201-z24-SlD"],
         model: "TS0201-z-SlD",
         vendor: "Slacky-DIY",
         description: "Tuya temperature and humidity sensor with custom Firmware",
-        configure: async (device, coordinatorEndpoint, logger) => {
-            const endpoint = device.getEndpoint(1);
-            await endpoint.read("msTemperatureMeasurement", [attrSensorReadPeriod]);
-            await endpoint.read("msTemperatureMeasurement", [attrTemperatureOffset]);
-            await endpoint.read("msTemperatureMeasurement", [attrTemperatureOnOff]);
-            await endpoint.read("msTemperatureMeasurement", [attrTemperatureLow]);
-            await endpoint.read("msTemperatureMeasurement", [attrTemperatureHigh]);
-            await endpoint.read("msRelativeHumidity", [attrHumidityOffset]);
-            await endpoint.read("msRelativeHumidity", [attrHumidityOnOff]);
-            await endpoint.read("msRelativeHumidity", [attrHumidityLow]);
-            await endpoint.read("msRelativeHumidity", [attrHumidityHigh]);
-        },
         extend: [
+            m.deviceEndpoints({
+                endpoints: {
+                    "1": 1,
+                    "2": 2,
+                },
+            }),
             m.battery({
                 voltage: true,
                 voltageReporting: true,
                 percentageReportingConfig: batteryReporting,
                 voltageReportingConfig: batteryReporting,
             }),
-            m.temperature({
-                reporting: temperatureReporting,
-            }),
-            m.humidity({
-                reporting: humidityReporting,
-            }),
+            m.temperature({reporting: temperatureReporting}),
+            m.humidity({reporting: humidityReporting}),
             m.numeric({
                 name: "temperature_offset",
                 cluster: "msTemperatureMeasurement",
@@ -1909,7 +2868,7 @@ export const definitions: DefinitionWithExtend[] = [
                 valueMax: 10,
                 valueStep: 1,
                 scale: 100,
-                description: "Offset to add/subtract to the inside temperature",
+                description: "Offset to add/subtract to the inside humidity",
             }),
             m.numeric({
                 name: "read_interval",
@@ -1920,6 +2879,14 @@ export const definitions: DefinitionWithExtend[] = [
                 valueMax: 600,
                 valueStep: 1,
                 description: "Sensors reading period",
+            }),
+            m.binary({
+                name: "enabling_repeat_command",
+                cluster: "msTemperatureMeasurement",
+                attribute: {ID: attrRepeatCommand, type: 0x10},
+                description: "Enables/disables repeat command",
+                valueOn: ["ON", 0x01],
+                valueOff: ["OFF", 0x00],
             }),
             m.binary({
                 name: "enabling_temperature_control",
@@ -1950,6 +2917,14 @@ export const definitions: DefinitionWithExtend[] = [
                 valueStep: 0.1,
                 scale: 100,
                 description: "Temperature high turn-on limit",
+            }),
+            m.enumLookup({
+                name: "temperature_actions",
+                endpointName: "1",
+                lookup: {heat: 0, cool: 1},
+                cluster: "genOnOffSwitchCfg",
+                attribute: "switchActions",
+                description: "Heat or cool",
             }),
             m.binary({
                 name: "enabling_humidity_control",
@@ -1982,11 +2957,12 @@ export const definitions: DefinitionWithExtend[] = [
                 description: "Humidity high turn-on limit",
             }),
             m.enumLookup({
-                name: "switch_actions",
-                lookup: {off: 0, on: 1},
+                name: "humidity_actions",
+                endpointName: "2",
+                lookup: {wet: 0, dry: 1},
                 cluster: "genOnOffSwitchCfg",
                 attribute: "switchActions",
-                description: "Actions switch",
+                description: "Wet or dry",
             }),
         ],
         ota: true,
@@ -2175,6 +3151,1783 @@ export const definitions: DefinitionWithExtend[] = [
                 reporting: {min: 60, max: 3600, change: 0},
                 unit: "h",
                 description: "Life time of device",
+            }),
+        ],
+        meta: {},
+        ota: true,
+    },
+    {
+        zigbeeModel: ["QS-Zigbee-SEC01-Mod"],
+        model: "QS-Zigbee-SEC01-Mod",
+        vendor: "Svetomaniya",
+        description: "Smart light switch module 1 gang",
+        extend: [
+            m.deviceAddCustomCluster("genOnOffSwitchCfg", {
+                name: "genOnOffSwitchCfg",
+                ID: 0x0007,
+                attributes: {
+                    customSwitchType: {
+                        name: "customSwitchType",
+                        ID: attrSwitchType,
+                        type: 0x30,
+                        write: true,
+                        max: 0xff,
+                    },
+                    customRelayControl: {
+                        name: "customRelayControl",
+                        ID: attrSwitchDecoupled,
+                        type: 0x30,
+                        write: true,
+                        max: 0xff,
+                    },
+                },
+                commands: {},
+                commandsResponse: {},
+            }),
+            m.deviceAddCustomCluster("genLevelCtrl", {
+                name: "genLevelCtrl",
+                ID: 0x0008,
+                attributes: {
+                    minLevel: {
+                        name: "minLevel",
+                        ID: 0x0002,
+                        type: 0x20,
+                        write: true,
+                        max: 0xff,
+                    },
+                    maxLevel: {
+                        name: "maxLevel",
+                        ID: 0x0003,
+                        type: 0x20,
+                        write: true,
+                        max: 0xff,
+                    },
+                },
+                commands: {},
+                commandsResponse: {},
+            }),
+            m.deviceAddCustomCluster("genScenes", {
+                name: "genScenes",
+                ID: 0x0005,
+                attributes: {
+                    customSceneId: {
+                        name: "customSceneId",
+                        ID: attrSceneId,
+                        type: 0x20,
+                        write: true,
+                        max: 0xff,
+                    },
+                    customGroupId: {
+                        name: "customGroupId",
+                        ID: attrGroupId,
+                        type: 0x21,
+                        write: true,
+                        max: 0xffff,
+                    },
+                },
+                commands: {},
+                commandsResponse: {},
+            }),
+            m.onOff({powerOnBehavior: true}),
+            m.commandsOnOff(),
+            localActionExtend({reporting: false}),
+            m.commandsLevelCtrl(),
+            m.enumLookup({
+                name: "switch_actions",
+                lookup: {off: 0, on: 1},
+                cluster: "genOnOffSwitchCfg",
+                attribute: "switchActions",
+                description: "Actions switch",
+            }),
+            m.enumLookup<"genOnOffSwitchCfg", SlackyDiyOnOffCfg>({
+                name: "switch_type",
+                lookup: {
+                    toggle: 0,
+                    momentary: 1,
+                    multifunction: 2,
+                    brightness_level: 3,
+                    scene: 6,
+                },
+                cluster: "genOnOffSwitchCfg",
+                attribute: "customSwitchType",
+                description: "Switch type",
+            }),
+            m.enumLookup<"genOnOffSwitchCfg", SlackyDiyOnOffCfg>({
+                name: "operation_mode",
+                lookup: {control_relay: 0, decoupled: 1},
+                cluster: "genOnOffSwitchCfg",
+                attribute: "customRelayControl",
+                reporting: {min: 0, max: 65000, change: 0},
+                description: "Relay decoupled",
+            }),
+            m.commandsScenes(),
+            m.numeric<"genScenes", SlackyDiyScene>({
+                name: "scene_id",
+                access: "ALL",
+                cluster: "genScenes",
+                attribute: "customSceneId",
+                valueMin: 0,
+                valueMax: 255,
+                description: "Scene ID",
+            }),
+            m.numeric<"genScenes", SlackyDiyScene>({
+                name: "group_id",
+                access: "ALL",
+                cluster: "genScenes",
+                attribute: "customGroupId",
+                valueMin: 0,
+                valueMax: 65527,
+                description: "Group ID for scenes",
+            }),
+            m.numeric<"genLevelCtrl">({
+                name: "min_level",
+                access: "ALL",
+                cluster: "genLevelCtrl",
+                attribute: "minLevel",
+                valueMin: 1,
+                valueMax: 255,
+                description: "Minimum level when decreasing",
+            }),
+            m.numeric<"genLevelCtrl">({
+                name: "max_level",
+                access: "ALL",
+                cluster: "genLevelCtrl",
+                attribute: "maxLevel",
+                valueMin: 1,
+                valueMax: 255,
+                description: "Maximum level when increasing",
+            }),
+        ],
+        meta: {},
+        ota: true,
+    },
+    {
+        zigbeeModel: ["QS-Zigbee-SEC02-Mod"],
+        model: "QS-Zigbee-SEC02-Mod",
+        vendor: "Svetomaniya",
+        description: "Smart light switch module 2 gang",
+        extend: [
+            m.deviceAddCustomCluster("genOnOffSwitchCfg", {
+                name: "genOnOffSwitchCfg",
+                ID: 0x0007,
+                attributes: {
+                    customSwitchType: {
+                        name: "customSwitchType",
+                        ID: attrSwitchType,
+                        type: 0x30,
+                        write: true,
+                        max: 0xff,
+                    },
+                    customRelayControl: {
+                        name: "customRelayControl",
+                        ID: attrSwitchDecoupled,
+                        type: 0x30,
+                        write: true,
+                        max: 0xff,
+                    },
+                },
+                commands: {},
+                commandsResponse: {},
+            }),
+            m.deviceAddCustomCluster("genLevelCtrl", {
+                name: "genLevelCtrl",
+                ID: 0x0008,
+                attributes: {
+                    minLevel: {
+                        name: "minLevel",
+                        ID: 0x0002,
+                        type: 0x20,
+                        write: true,
+                        max: 0xff,
+                    },
+                    maxLevel: {
+                        name: "maxLevel",
+                        ID: 0x0003,
+                        type: 0x20,
+                        write: true,
+                        max: 0xff,
+                    },
+                },
+                commands: {},
+                commandsResponse: {},
+            }),
+            m.deviceAddCustomCluster("genScenes", {
+                name: "genScenes",
+                ID: 0x0005,
+                attributes: {
+                    customSceneId: {
+                        name: "customSceneId",
+                        ID: attrSceneId,
+                        type: 0x20,
+                        write: true,
+                        max: 0xff,
+                    },
+                    customGroupId: {
+                        name: "customGroupId",
+                        ID: attrGroupId,
+                        type: 0x21,
+                        write: true,
+                        max: 0xffff,
+                    },
+                },
+                commands: {},
+                commandsResponse: {},
+            }),
+            m.deviceEndpoints({endpoints: {"1": 1, "2": 2}}),
+            m.onOff({powerOnBehavior: true, endpointNames: ["1", "2"]}),
+            m.commandsOnOff({endpointNames: ["1", "2"]}),
+            localActionExtend({
+                endpointNames: ["1", "2"],
+                reporting: false,
+            }),
+            m.commandsLevelCtrl({endpointNames: ["1", "2"]}),
+            m.enumLookup({
+                name: "switch_actions",
+                endpointName: "1",
+                lookup: {off: 0, on: 1},
+                cluster: "genOnOffSwitchCfg",
+                attribute: "switchActions",
+                description: "Actions switch",
+            }),
+            m.enumLookup({
+                name: "switch_actions",
+                endpointName: "2",
+                lookup: {off: 0, on: 1},
+                cluster: "genOnOffSwitchCfg",
+                attribute: "switchActions",
+                description: "Actions switch",
+            }),
+            m.enumLookup<"genOnOffSwitchCfg", SlackyDiyOnOffCfg>({
+                name: "switch_type",
+                endpointName: "1",
+                lookup: {
+                    toggle: 0,
+                    momentary: 1,
+                    multifunction: 2,
+                    brightness_level: 3,
+                    brightness_level_up: 4,
+                    brightness_level_down: 5,
+                    scene: 6,
+                },
+                cluster: "genOnOffSwitchCfg",
+                attribute: "customSwitchType",
+                description: "Switch type",
+            }),
+            m.enumLookup<"genOnOffSwitchCfg", SlackyDiyOnOffCfg>({
+                name: "switch_type",
+                endpointName: "2",
+                lookup: {
+                    toggle: 0,
+                    momentary: 1,
+                    multifunction: 2,
+                    brightness_level: 3,
+                    brightness_level_up: 4,
+                    brightness_level_down: 5,
+                    scene: 6,
+                },
+                cluster: "genOnOffSwitchCfg",
+                attribute: "customSwitchType",
+                description: "Switch type",
+            }),
+            m.enumLookup<"genOnOffSwitchCfg", SlackyDiyOnOffCfg>({
+                name: "operation_mode",
+                endpointName: "1",
+                lookup: {control_relay: 0, decoupled: 1},
+                cluster: "genOnOffSwitchCfg",
+                attribute: "customRelayControl",
+                reporting: {min: 0, max: 65000, change: 0},
+                description: "Relay decoupled",
+            }),
+            m.enumLookup<"genOnOffSwitchCfg", SlackyDiyOnOffCfg>({
+                name: "operation_mode",
+                endpointName: "2",
+                lookup: {control_relay: 0, decoupled: 1},
+                cluster: "genOnOffSwitchCfg",
+                attribute: "customRelayControl",
+                reporting: {min: 0, max: 65000, change: 0},
+                description: "Relay decoupled",
+            }),
+            m.commandsScenes({endpointNames: ["1", "2"]}),
+            m.numeric<"genScenes", SlackyDiyScene>({
+                name: "scene_id",
+                endpointNames: ["1", "2"],
+                access: "ALL",
+                cluster: "genScenes",
+                attribute: "customSceneId",
+                valueMin: 0,
+                valueMax: 255,
+                description: "Scene ID",
+            }),
+            m.numeric<"genScenes", SlackyDiyScene>({
+                name: "group_id",
+                endpointNames: ["1", "2"],
+                access: "ALL",
+                cluster: "genScenes",
+                attribute: "customGroupId",
+                valueMin: 0,
+                valueMax: 65527,
+                description: "Group ID for scenes",
+            }),
+            m.numeric<"genLevelCtrl">({
+                name: "min_level",
+                endpointNames: ["1", "2"],
+                access: "ALL",
+                cluster: "genLevelCtrl",
+                attribute: "minLevel",
+                valueMin: 1,
+                valueMax: 255,
+                description: "Minimum level when decreasing",
+            }),
+            m.numeric<"genLevelCtrl">({
+                name: "max_level",
+                endpointNames: ["1", "2"],
+                access: "ALL",
+                cluster: "genLevelCtrl",
+                attribute: "maxLevel",
+                valueMin: 1,
+                valueMax: 255,
+                description: "Maximum level when increasing",
+            }),
+        ],
+        meta: {},
+        ota: true,
+    },
+    {
+        zigbeeModel: ["TS011F-SlD"],
+        model: "TS011F_plug-SlD",
+        vendor: "Slacky-DIY",
+        description: "Plug with power monitoring",
+        extend: [
+            m.onOff({powerOnBehavior: true}),
+            m.binary({
+                name: "key_lock",
+                valueOn: ["LOCK", 1],
+                valueOff: ["UNLOCK", 0],
+                cluster: "genOnOff",
+                attribute: {ID: attrPlugKeyLock, type: 0x10},
+                description: "Key lock enable/disable",
+            }),
+            m.enumLookup({
+                name: "led_control",
+                lookup: {off: 0, on: 1, "on/off": 2},
+                cluster: "genOnOff",
+                attribute: {ID: attrPlugLedCtrl, type: 0x30},
+                description: "Led control",
+            }),
+            m.electricityMeter({
+                current: {divisor: 100},
+                voltage: {divisor: 100},
+                power: {divisor: 1},
+                energy: {divisor: 100},
+                acFrequency: {divisor: 100},
+            }),
+            m.deviceAddCustomCluster("seMetering", {
+                name: "seMetering",
+                ID: 0x0702,
+                attributes: {},
+                commands: {
+                    resetEnergyMeters: {
+                        name: "resetEnergyMeters",
+                        ID: 0x80,
+                        parameters: [],
+                    },
+                },
+                commandsResponse: {},
+            }),
+            energyResetExtend.energyReset(),
+            m.binary({
+                name: "protect_control",
+                valueOn: ["ON", 1],
+                valueOff: ["OFF", 0],
+                cluster: "haElectricalMeasurement",
+                attribute: {ID: attrPlugSwitchProtectCtrl, type: 0x10},
+                description: "Protection control enable/disable",
+            }),
+            m.binary({
+                name: "automatic_restart",
+                valueOn: ["ON", 1],
+                valueOff: ["OFF", 0],
+                cluster: "haElectricalMeasurement",
+                attribute: {ID: attrPlugSwitchAutoRestart, type: 0x10},
+                description: "Automatic restart enable/disable for voltage only",
+            }),
+            m.numeric({
+                name: "voltage_min",
+                unit: "V",
+                cluster: "haElectricalMeasurement",
+                attribute: "rmsExtremeUnderVoltage",
+                description: "Minimum voltage value",
+                valueMin: 0,
+                valueMax: 300,
+                scale: 100,
+            }),
+            m.numeric({
+                name: "voltage_max",
+                unit: "V",
+                cluster: "haElectricalMeasurement",
+                attribute: "rmsExtremeOverVoltage",
+                description: "Maximum voltage value",
+                valueMin: 0,
+                valueMax: 300,
+                scale: 100,
+            }),
+            m.numeric({
+                name: "current_max",
+                unit: "A",
+                cluster: "haElectricalMeasurement",
+                attribute: {ID: attrPlugSwitchCurrentMax, type: 0x21},
+                description: "Maximum current value",
+                scale: 100,
+                valueMin: 0,
+                valueMax: 16,
+                valueStep: 0.1,
+            }),
+            m.numeric({
+                name: "power_max",
+                unit: "W",
+                cluster: "haElectricalMeasurement",
+                attribute: {ID: attrPlugSwitchPowerMax, type: 0x29},
+                description: "Maximum power value",
+                valueMin: 0,
+                valueMax: 3600,
+            }),
+            m.numeric({
+                name: "time_reload",
+                unit: "sec",
+                cluster: "haElectricalMeasurement",
+                attribute: {ID: attrPlugSwitchTimeReload, type: 0x21},
+                description: "Reload time",
+                valueMin: 5,
+                valueMax: 60,
+            }),
+        ],
+        meta: {},
+        ota: true,
+    },
+    {
+        zigbeeModel: ["TS0001_power-SlD"],
+        model: "TS0001_power-SlD",
+        vendor: "Slacky-DIY",
+        description: "Switch with power monitoring",
+        extend: [
+            m.onOff({powerOnBehavior: true}),
+            m.commandsOnOff(),
+            localActionExtend(),
+            m.enumLookup({
+                name: "switch_actions",
+                lookup: {off: 0, on: 1},
+                cluster: "genOnOffSwitchCfg",
+                attribute: "switchActions",
+                description: "Actions switch",
+            }),
+            m.enumLookup({
+                name: "switch_type",
+                lookup: {toggle: 0, momentary: 1, multifunction: 2},
+                cluster: "genOnOffSwitchCfg",
+                attribute: {ID: 0xf000, type: 0x30},
+                description: "Switch 1 type",
+            }),
+            m.enumLookup({
+                name: "operation_mode",
+                lookup: {control_relay: 0, decoupled: 1},
+                cluster: "genOnOffSwitchCfg",
+                attribute: {ID: 0xf001, type: 0x30},
+                reporting: {min: 0, max: 65000, change: 0},
+                description: "Relay decoupled",
+            }),
+            m.electricityMeter({
+                current: {divisor: 100},
+                voltage: {divisor: 100},
+                power: {divisor: 1},
+                energy: {divisor: 100},
+                acFrequency: {divisor: 100},
+            }),
+            m.deviceAddCustomCluster("seMetering", {
+                name: "seMetering",
+                ID: 0x0702,
+                attributes: {},
+                commands: {
+                    resetEnergyMeters: {
+                        name: "resetEnergyMeters",
+                        ID: 0x80,
+                        parameters: [],
+                    },
+                },
+                commandsResponse: {},
+            }),
+            energyResetExtend.energyReset(),
+            m.binary({
+                name: "protect_control",
+                valueOn: ["ON", 1],
+                valueOff: ["OFF", 0],
+                cluster: "haElectricalMeasurement",
+                attribute: {ID: attrPlugSwitchProtectCtrl, type: 0x10},
+                description: "Protection control enable/disable",
+            }),
+            m.binary({
+                name: "automatic_restart",
+                valueOn: ["ON", 1],
+                valueOff: ["OFF", 0],
+                cluster: "haElectricalMeasurement",
+                attribute: {ID: attrPlugSwitchAutoRestart, type: 0x10},
+                description: "Automatic restart enable/disable for voltage only",
+            }),
+            m.numeric({
+                name: "voltage_min",
+                unit: "V",
+                cluster: "haElectricalMeasurement",
+                attribute: "rmsExtremeUnderVoltage",
+                description: "Minimum voltage value",
+                valueMin: 0,
+                valueMax: 300,
+                scale: 100,
+            }),
+            m.numeric({
+                name: "voltage_max",
+                unit: "V",
+                cluster: "haElectricalMeasurement",
+                attribute: "rmsExtremeOverVoltage",
+                description: "Maximum voltage value",
+                valueMin: 0,
+                valueMax: 300,
+                scale: 100,
+            }),
+            m.numeric({
+                name: "current_max",
+                unit: "A",
+                cluster: "haElectricalMeasurement",
+                attribute: {ID: attrPlugSwitchCurrentMax, type: 0x21},
+                description: "Maximum current value",
+                scale: 100,
+                valueMin: 0,
+                valueMax: 16,
+                valueStep: 0.1,
+            }),
+            m.numeric({
+                name: "power_max",
+                unit: "W",
+                cluster: "haElectricalMeasurement",
+                attribute: {ID: attrPlugSwitchPowerMax, type: 0x29},
+                description: "Maximum power value",
+                valueMin: 0,
+                valueMax: 3600,
+            }),
+            m.numeric({
+                name: "time_reload",
+                unit: "sec",
+                cluster: "haElectricalMeasurement",
+                attribute: {ID: attrPlugSwitchTimeReload, type: 0x21},
+                description: "Reload time",
+                valueMin: 5,
+                valueMax: 60,
+            }),
+        ],
+        meta: {},
+        ota: true,
+    },
+    {
+        zigbeeModel: ["TSM1-0025-SlD"],
+        model: "TSM1-SlD",
+        vendor: "Slacky-DIY",
+        description: "Tuya switch module 1 gang with custom firmware",
+        extend: [
+            m.deviceAddCustomCluster("genOnOffSwitchCfg", {
+                name: "genOnOffSwitchCfg",
+                ID: 0x0007,
+                attributes: {
+                    customSwitchType: {
+                        name: "customSwitchType",
+                        ID: attrSwitchType,
+                        type: 0x30,
+                        write: true,
+                        max: 0xff,
+                    },
+                    customRelayControl: {
+                        name: "customRelayControl",
+                        ID: attrSwitchDecoupled,
+                        type: 0x30,
+                        write: true,
+                        max: 0xff,
+                    },
+                    customDeviceModelNumber: {
+                        name: "customDeviceModelNumber",
+                        ID: attrDeviceModelNumber,
+                        type: 0x30,
+                        write: true,
+                        max: 0xff,
+                    },
+                },
+                commands: {},
+                commandsResponse: {},
+            }),
+            m.onOff({powerOnBehavior: true}),
+            m.commandsOnOff(),
+            localActionExtend(),
+            m.enumLookup({
+                name: "switch_actions",
+                lookup: {off: 0, on: 1},
+                cluster: "genOnOffSwitchCfg",
+                attribute: "switchActions",
+                description: "Actions switch",
+            }),
+            m.enumLookup<"genOnOffSwitchCfg", SlackyDiyOnOffCfg>({
+                name: "switch_type",
+                lookup: {toggle: 0, momentary: 1, multifunction: 2},
+                cluster: "genOnOffSwitchCfg",
+                attribute: "customSwitchType",
+                description: "Switch type",
+            }),
+            m.enumLookup<"genOnOffSwitchCfg", SlackyDiyOnOffCfg>({
+                name: "operation_mode",
+                lookup: {control_relay: 0, decoupled: 1},
+                cluster: "genOnOffSwitchCfg",
+                attribute: "customRelayControl",
+                reporting: {min: 0, max: 65000, change: 0},
+                description: "Relay decoupled",
+            }),
+        ],
+        meta: {},
+        ota: true,
+    },
+    {
+        zigbeeModel: ["TS0203-z20-Sld"],
+        model: "TS0203-z-Sld",
+        vendor: "Slacky-DIY",
+        description: "Tuya door/window sensor with custom firmware",
+        toZigbee: [tzLocal.device_model_number],
+        extend: [
+            m.deviceAddCustomCluster("genOnOffSwitchCfg", {
+                name: "genOnOffSwitchCfg",
+                ID: 0x0007,
+                attributes: {
+                    customDelayOn: {
+                        name: "customDelayOn",
+                        ID: attrDoorDelayOn,
+                        type: 0x20,
+                        write: true,
+                        max: 0xff,
+                    },
+                    customDelayOff: {
+                        name: "customDelayOff",
+                        ID: attrDoorDelayOff,
+                        type: 0x20,
+                        write: true,
+                        max: 0xff,
+                    },
+                    customDeviceModelNumber: {
+                        name: "customDeviceModelNumber",
+                        ID: attrDeviceModelNumber,
+                        type: 0x30,
+                        write: true,
+                        max: 0xff,
+                    },
+                    customOnCmdOff: {
+                        name: "customOnCmdOff",
+                        ID: attrDoorOnCmdOff,
+                        type: 0x10,
+                        write: true,
+                        max: 0x01,
+                    },
+                    customOffCmdOff: {
+                        name: "customOffCmdOff",
+                        ID: attrDoorOffCmdOff,
+                        type: 0x10,
+                        write: true,
+                        max: 0x01,
+                    },
+                },
+                commands: {},
+                commandsResponse: {},
+            }),
+            m.text({
+                name: "model_number",
+                cluster: "genBasic",
+                attribute: "productLabel",
+                access: "STATE_GET",
+                description: "Door sensor model number",
+            }),
+            m.iasZoneAlarm({zoneType: "contact", zoneAttributes: ["alarm_1"]}),
+            m.battery({
+                voltage: true,
+                voltageReporting: true,
+                percentageReportingConfig: {min: 3600, max: 0, change: 0},
+                voltageReportingConfig: {min: 3600, max: 0, change: 0},
+            }),
+            m.enumLookup({
+                name: "switch_actions",
+                lookup: {off: 0, on: 1, toggle: 2},
+                cluster: "genOnOffSwitchCfg",
+                attribute: "switchActions",
+                description: "Actions switch",
+            }),
+            m.numeric<"genOnOffSwitchCfg", SlackyDiyOnOffCfg>({
+                name: "delay_on",
+                unit: "sec",
+                cluster: "genOnOffSwitchCfg",
+                attribute: "customDelayOn",
+                description: "Delay On",
+                valueMin: 0,
+                valueMax: 120,
+            }),
+            m.numeric<"genOnOffSwitchCfg", SlackyDiyOnOffCfg>({
+                name: "delay_off",
+                unit: "sec",
+                cluster: "genOnOffSwitchCfg",
+                attribute: "customDelayOff",
+                description: "Delay Off",
+                valueMin: 0,
+                valueMax: 120,
+            }),
+            m.binary<"genOnOffSwitchCfg", SlackyDiyOnOffCfg>({
+                name: "on_command_off",
+                valueOn: ["ON", 0x01],
+                valueOff: ["OFF", 0x00],
+                cluster: "genOnOffSwitchCfg",
+                attribute: "customOnCmdOff",
+                description: "Disable command 'On'",
+            }),
+            m.binary<"genOnOffSwitchCfg", SlackyDiyOnOffCfg>({
+                name: "off_command_off",
+                valueOn: ["ON", 0x01],
+                valueOff: ["OFF", 0x00],
+                cluster: "genOnOffSwitchCfg",
+                attribute: "customOffCmdOff",
+                description: "Disable command 'Off'",
+            }),
+        ],
+        meta: {},
+        ota: true,
+    },
+    {
+        fingerprint: [
+            {modelID: "TS0041-M001-SlD", manufacturerName: "Slacky-DIY"},
+            {modelID: "TS0041-M002-SlD", manufacturerName: "Slacky-DIY"},
+            {modelID: "TS0041-M005-SlD", manufacturerName: "Slacky-DIY"},
+        ],
+        model: "TS0041-M001-SlD",
+        vendor: "Slacky-DIY",
+        description: "Tuya wireless switch with 1 buttons with custom firmware",
+        whiteLabel: [
+            {model: "TS0041-M002-SlD", fingerprint: [{modelID: "TS0041-M002-SlD"}]},
+            {model: "TS0041-M005-SlD", fingerprint: [{modelID: "TS0041-M005-SlD"}]},
+        ],
+        extend: [
+            m.deviceAddCustomCluster("genOnOffSwitchCfg", {
+                name: "genOnOffSwitchCfg",
+                ID: 0x0007,
+                attributes: {
+                    customSwitchType: {
+                        name: "customSwitchType",
+                        ID: attrSwitchType,
+                        type: 0x30,
+                        write: true,
+                        max: 0xff,
+                    },
+                    customDeviceModelNumber: {
+                        name: "customDeviceModelNumber",
+                        ID: attrDeviceModelNumber,
+                        type: 0x30,
+                        write: true,
+                        max: 0xff,
+                    },
+                },
+                commands: {},
+                commandsResponse: {},
+            }),
+            m.deviceAddCustomCluster("genLevelCtrl", {
+                name: "genLevelCtrl",
+                ID: 0x0008,
+                attributes: {
+                    minLevel: {
+                        name: "minLevel",
+                        ID: 0x0002,
+                        type: 0x20,
+                        write: true,
+                        max: 0xff,
+                    },
+                    maxLevel: {
+                        name: "maxLevel",
+                        ID: 0x0003,
+                        type: 0x20,
+                        write: true,
+                        max: 0xff,
+                    },
+                },
+                commands: {},
+                commandsResponse: {},
+            }),
+            m.deviceAddCustomCluster("genScenes", {
+                name: "genScenes",
+                ID: 0x0005,
+                attributes: {
+                    customSceneId: {
+                        name: "customSceneId",
+                        ID: attrSceneId,
+                        type: 0x20,
+                        write: true,
+                        max: 0xff,
+                    },
+                    customGroupId: {
+                        name: "customGroupId",
+                        ID: attrGroupId,
+                        type: 0x21,
+                        write: true,
+                        max: 0xffff,
+                    },
+                },
+                commands: {},
+                commandsResponse: {},
+            }),
+            m.deviceEndpoints({endpoints: {"1": 1}}),
+            m.battery({
+                percentageReportingConfig: {min: 3600, max: 14400, change: 0},
+            }),
+            m.commandsOnOff({endpointNames: ["1"]}),
+            localActionExtend({
+                endpointNames: ["1"],
+                reporting: false,
+            }),
+            m.commandsLevelCtrl({endpointNames: ["1"]}),
+            m.enumLookup({
+                name: "switch_actions",
+                endpointName: "1",
+                lookup: {off: 0, on: 1, toggle: 2},
+                cluster: "genOnOffSwitchCfg",
+                attribute: "switchActions",
+                description: "Actions switch",
+            }),
+            m.enumLookup<"genOnOffSwitchCfg", SlackyDiyOnOffCfg>({
+                name: "switch_type",
+                endpointName: "1",
+                lookup: {
+                    toggle: 0,
+                    momentary: 1,
+                    multifunction: 2,
+                    brightness_level: 3,
+                    scene: 6,
+                },
+                cluster: "genOnOffSwitchCfg",
+                attribute: "customSwitchType",
+                description: "Switch type",
+            }),
+            m.commandsScenes({endpointNames: ["1"]}),
+            m.numeric<"genScenes", SlackyDiyScene>({
+                name: "scene_id",
+                access: "ALL",
+                endpointNames: ["1"],
+                cluster: "genScenes",
+                attribute: "customSceneId",
+                reporting: false,
+                valueMin: 0,
+                valueMax: 255,
+                description: "Scene ID",
+            }),
+            m.numeric<"genScenes", SlackyDiyScene>({
+                name: "group_id",
+                access: "ALL",
+                endpointNames: ["1"],
+                cluster: "genScenes",
+                attribute: "customGroupId",
+                reporting: false,
+                valueMin: 0,
+                valueMax: 65527,
+                description: "Group ID for scenes",
+            }),
+            m.numeric<"genLevelCtrl">({
+                name: "min_level",
+                endpointNames: ["1"],
+                access: "ALL",
+                cluster: "genLevelCtrl",
+                attribute: "minLevel",
+                valueMin: 1,
+                valueMax: 255,
+                description: "Minimum level when decreasing",
+            }),
+            m.numeric<"genLevelCtrl">({
+                name: "max_level",
+                endpointNames: ["1"],
+                access: "ALL",
+                cluster: "genLevelCtrl",
+                attribute: "maxLevel",
+                valueMin: 1,
+                valueMax: 255,
+                description: "Maximum level when increasing",
+            }),
+        ],
+        meta: {},
+        ota: true,
+    },
+    {
+        fingerprint: [
+            {modelID: "TS0042-z-SlD", manufacturerName: "Slacky-DIY"},
+            {modelID: "TS0042-M003-SlD", manufacturerName: "Slacky-DIY"},
+        ],
+        model: "TS0042-z-SlD",
+        vendor: "Slacky-DIY",
+        description: "Tuya wireless switch with 2 buttons with custom firmware",
+        whiteLabel: [{model: "TS0042-M003-SlD", fingerprint: [{modelID: "TS0042-M003-SlD"}]}],
+        extend: [
+            m.deviceAddCustomCluster("genOnOffSwitchCfg", {
+                name: "genOnOffSwitchCfg",
+                ID: 0x0007,
+                attributes: {
+                    customSwitchType: {
+                        name: "customSwitchType",
+                        ID: attrSwitchType,
+                        type: 0x30,
+                        write: true,
+                        max: 0xff,
+                    },
+                    customDeviceModelNumber: {
+                        name: "customDeviceModelNumber",
+                        ID: attrDeviceModelNumber,
+                        type: 0x30,
+                        write: true,
+                        max: 0xff,
+                    },
+                },
+                commands: {},
+                commandsResponse: {},
+            }),
+            m.deviceAddCustomCluster("genLevelCtrl", {
+                name: "genLevelCtrl",
+                ID: 0x0008,
+                attributes: {
+                    minLevel: {
+                        name: "minLevel",
+                        ID: 0x0002,
+                        type: 0x20,
+                        write: true,
+                        max: 0xff,
+                    },
+                    maxLevel: {
+                        name: "maxLevel",
+                        ID: 0x0003,
+                        type: 0x20,
+                        write: true,
+                        max: 0xff,
+                    },
+                },
+                commands: {},
+                commandsResponse: {},
+            }),
+            m.deviceAddCustomCluster("genScenes", {
+                name: "genScenes",
+                ID: 0x0005,
+                attributes: {
+                    customSceneId: {
+                        name: "customSceneId",
+                        ID: attrSceneId,
+                        type: 0x20,
+                        write: true,
+                        max: 0xff,
+                    },
+                    customGroupId: {
+                        name: "customGroupId",
+                        ID: attrGroupId,
+                        type: 0x21,
+                        write: true,
+                        max: 0xffff,
+                    },
+                },
+                commands: {},
+                commandsResponse: {},
+            }),
+            m.deviceEndpoints({endpoints: {"1": 1, "2": 2}}),
+            m.battery({
+                percentageReportingConfig: {min: 3600, max: 14400, change: 0},
+            }),
+            m.commandsOnOff({endpointNames: ["1", "2"]}),
+            localActionExtend({
+                endpointNames: ["1", "2"],
+                reporting: false,
+            }),
+            m.commandsLevelCtrl({endpointNames: ["1", "2"]}),
+            m.enumLookup({
+                name: "switch_actions",
+                endpointName: "1",
+                lookup: {off: 0, on: 1, toggle: 2},
+                cluster: "genOnOffSwitchCfg",
+                attribute: "switchActions",
+                description: "Actions switch",
+            }),
+            m.enumLookup({
+                name: "switch_actions",
+                endpointName: "2",
+                lookup: {off: 0, on: 1, toggle: 2},
+                cluster: "genOnOffSwitchCfg",
+                attribute: "switchActions",
+                description: "Actions switch",
+            }),
+            m.enumLookup<"genOnOffSwitchCfg", SlackyDiyOnOffCfg>({
+                name: "switch_type",
+                endpointName: "1",
+                lookup: {
+                    toggle: 0,
+                    momentary: 1,
+                    multifunction: 2,
+                    brightness_level: 3,
+                    brightness_level_up: 4,
+                    brightness_level_down: 5,
+                    scene: 6,
+                },
+                cluster: "genOnOffSwitchCfg",
+                attribute: "customSwitchType",
+                description: "Switch type",
+            }),
+            m.enumLookup<"genOnOffSwitchCfg", SlackyDiyOnOffCfg>({
+                name: "switch_type",
+                endpointName: "2",
+                lookup: {
+                    toggle: 0,
+                    momentary: 1,
+                    multifunction: 2,
+                    brightness_level: 3,
+                    brightness_level_up: 4,
+                    brightness_level_down: 5,
+                    scene: 6,
+                },
+                cluster: "genOnOffSwitchCfg",
+                attribute: "customSwitchType",
+                description: "Switch type",
+            }),
+            m.commandsScenes({endpointNames: ["1", "2"]}),
+            m.numeric<"genScenes", SlackyDiyScene>({
+                name: "scene_id",
+                endpointNames: ["1", "2"],
+                access: "ALL",
+                cluster: "genScenes",
+                attribute: "customSceneId",
+                valueMin: 0,
+                valueMax: 255,
+                description: "Scene ID",
+            }),
+            m.numeric<"genScenes", SlackyDiyScene>({
+                name: "group_id",
+                endpointNames: ["1", "2"],
+                access: "ALL",
+                cluster: "genScenes",
+                attribute: "customGroupId",
+                valueMin: 0,
+                valueMax: 65527,
+                description: "Group ID for scenes",
+            }),
+            m.numeric<"genLevelCtrl">({
+                name: "min_level",
+                endpointNames: ["1", "2"],
+                access: "ALL",
+                cluster: "genLevelCtrl",
+                attribute: "minLevel",
+                valueMin: 1,
+                valueMax: 255,
+                description: "Minimum level when decreasing",
+            }),
+            m.numeric<"genLevelCtrl">({
+                name: "max_level",
+                endpointNames: ["1", "2"],
+                access: "ALL",
+                cluster: "genLevelCtrl",
+                attribute: "maxLevel",
+                valueMin: 1,
+                valueMax: 255,
+                description: "Maximum level when increasing",
+            }),
+        ],
+        meta: {},
+        ota: true,
+    },
+    {
+        zigbeeModel: ["TS0043-z-SlD"],
+        model: "TS0043-z-SlD",
+        vendor: "Slacky-DIY",
+        description: "Tuya wireless switch with 3 buttons with custom firmware",
+        extend: [
+            m.deviceAddCustomCluster("genOnOffSwitchCfg", {
+                name: "genOnOffSwitchCfg",
+                ID: 0x0007,
+                attributes: {
+                    customSwitchType: {
+                        name: "customSwitchType",
+                        ID: attrSwitchType,
+                        type: 0x30,
+                        write: true,
+                        max: 0xff,
+                    },
+                    customDeviceModelNumber: {
+                        name: "customDeviceModelNumber",
+                        ID: attrDeviceModelNumber,
+                        type: 0x30,
+                        write: true,
+                        max: 0xff,
+                    },
+                },
+                commands: {},
+                commandsResponse: {},
+            }),
+            m.deviceAddCustomCluster("genLevelCtrl", {
+                name: "genLevelCtrl",
+                ID: 0x0008,
+                attributes: {
+                    minLevel: {
+                        name: "minLevel",
+                        ID: 0x0002,
+                        type: 0x20,
+                        write: true,
+                        max: 0xff,
+                    },
+                    maxLevel: {
+                        name: "maxLevel",
+                        ID: 0x0003,
+                        type: 0x20,
+                        write: true,
+                        max: 0xff,
+                    },
+                },
+                commands: {},
+                commandsResponse: {},
+            }),
+            m.deviceAddCustomCluster("genScenes", {
+                name: "genScenes",
+                ID: 0x0005,
+                attributes: {
+                    customSceneId: {
+                        name: "customSceneId",
+                        ID: attrSceneId,
+                        type: 0x20,
+                        write: true,
+                        max: 0xff,
+                    },
+                    customGroupId: {
+                        name: "customGroupId",
+                        ID: attrGroupId,
+                        type: 0x21,
+                        write: true,
+                        max: 0xffff,
+                    },
+                },
+                commands: {},
+                commandsResponse: {},
+            }),
+            m.deviceEndpoints({endpoints: {"1": 1, "2": 2, "3": 3}}),
+            m.battery({
+                percentageReportingConfig: {min: 3600, max: 14400, change: 0},
+            }),
+            m.commandsOnOff({endpointNames: ["1", "2", "3"]}),
+            localActionExtend({
+                endpointNames: ["1", "2", "3"],
+                reporting: false,
+            }),
+            m.commandsLevelCtrl({endpointNames: ["1", "2", "3"]}),
+            m.enumLookup({
+                name: "switch_actions",
+                endpointName: "1",
+                lookup: {off: 0, on: 1, toggle: 2},
+                cluster: "genOnOffSwitchCfg",
+                attribute: "switchActions",
+                description: "Actions switch",
+            }),
+            m.enumLookup({
+                name: "switch_actions",
+                endpointName: "2",
+                lookup: {off: 0, on: 1, toggle: 2},
+                cluster: "genOnOffSwitchCfg",
+                attribute: "switchActions",
+                description: "Actions switch",
+            }),
+            m.enumLookup({
+                name: "switch_actions",
+                endpointName: "3",
+                lookup: {off: 0, on: 1, toggle: 2},
+                cluster: "genOnOffSwitchCfg",
+                attribute: "switchActions",
+                description: "Actions switch",
+            }),
+            m.enumLookup<"genOnOffSwitchCfg", SlackyDiyOnOffCfg>({
+                name: "switch_type",
+                endpointName: "1",
+                lookup: {
+                    toggle: 0,
+                    momentary: 1,
+                    multifunction: 2,
+                    brightness_level: 3,
+                    brightness_level_up: 4,
+                    brightness_level_down: 5,
+                    scene: 6,
+                },
+                cluster: "genOnOffSwitchCfg",
+                attribute: "customSwitchType",
+                description: "Switch type",
+            }),
+            m.enumLookup<"genOnOffSwitchCfg", SlackyDiyOnOffCfg>({
+                name: "switch_type",
+                endpointName: "2",
+                lookup: {
+                    toggle: 0,
+                    momentary: 1,
+                    multifunction: 2,
+                    brightness_level: 3,
+                    brightness_level_up: 4,
+                    brightness_level_down: 5,
+                    scene: 6,
+                },
+                cluster: "genOnOffSwitchCfg",
+                attribute: "customSwitchType",
+                description: "Switch type",
+            }),
+            m.enumLookup<"genOnOffSwitchCfg", SlackyDiyOnOffCfg>({
+                name: "switch_type",
+                endpointName: "3",
+                lookup: {
+                    toggle: 0,
+                    momentary: 1,
+                    multifunction: 2,
+                    brightness_level: 3,
+                    brightness_level_up: 4,
+                    brightness_level_down: 5,
+                    scene: 6,
+                },
+                cluster: "genOnOffSwitchCfg",
+                attribute: "customSwitchType",
+                description: "Switch type",
+            }),
+            m.commandsScenes({endpointNames: ["1", "2", "3"]}),
+            m.numeric<"genScenes", SlackyDiyScene>({
+                name: "scene_id",
+                endpointNames: ["1", "2", "3"],
+                access: "ALL",
+                cluster: "genScenes",
+                attribute: "customSceneId",
+                valueMin: 0,
+                valueMax: 255,
+                description: "Scene ID",
+            }),
+            m.numeric<"genScenes", SlackyDiyScene>({
+                name: "group_id",
+                endpointNames: ["1", "2", "3"],
+                access: "ALL",
+                cluster: "genScenes",
+                attribute: "customGroupId",
+                valueMin: 0,
+                valueMax: 65527,
+                description: "Group ID for scenes",
+            }),
+            m.numeric<"genLevelCtrl">({
+                name: "min_level",
+                endpointNames: ["1", "2", "3"],
+                access: "ALL",
+                cluster: "genLevelCtrl",
+                attribute: "minLevel",
+                valueMin: 1,
+                valueMax: 255,
+                description: "Minimum level when decreasing",
+            }),
+            m.numeric<"genLevelCtrl">({
+                name: "max_level",
+                endpointNames: ["1", "2", "3"],
+                access: "ALL",
+                cluster: "genLevelCtrl",
+                attribute: "maxLevel",
+                valueMin: 1,
+                valueMax: 255,
+                description: "Maximum level when increasing",
+            }),
+        ],
+        meta: {},
+        ota: true,
+    },
+    {
+        fingerprint: [
+            {modelID: "TS0044-z-SlD", manufacturerName: "Slacky-DIY"},
+            {modelID: "TS0044-M004-SlD", manufacturerName: "Slacky-DIY"},
+        ],
+        model: "TS0044-z-SlD",
+        vendor: "Slacky-DIY",
+        description: "Tuya wireless switch with 4 buttons with custom firmware",
+        whiteLabel: [{model: "TS0044-M004-SlD", fingerprint: [{modelID: "TS0044-M004-SlD"}]}],
+        extend: [
+            m.deviceAddCustomCluster("genOnOffSwitchCfg", {
+                name: "genOnOffSwitchCfg",
+                ID: 0x0007,
+                attributes: {
+                    customSwitchType: {
+                        name: "customSwitchType",
+                        ID: attrSwitchType,
+                        type: 0x30,
+                        write: true,
+                        max: 0xff,
+                    },
+                    customDeviceModelNumber: {
+                        name: "customDeviceModelNumber",
+                        ID: attrDeviceModelNumber,
+                        type: 0x30,
+                        write: true,
+                        max: 0xff,
+                    },
+                },
+                commands: {},
+                commandsResponse: {},
+            }),
+            m.deviceAddCustomCluster("genLevelCtrl", {
+                name: "genLevelCtrl",
+                ID: 0x0008,
+                attributes: {
+                    minLevel: {
+                        name: "minLevel",
+                        ID: 0x0002,
+                        type: 0x20,
+                        write: true,
+                        max: 0xff,
+                    },
+                    maxLevel: {
+                        name: "maxLevel",
+                        ID: 0x0003,
+                        type: 0x20,
+                        write: true,
+                        max: 0xff,
+                    },
+                },
+                commands: {},
+                commandsResponse: {},
+            }),
+            m.deviceAddCustomCluster("genScenes", {
+                name: "genScenes",
+                ID: 0x0005,
+                attributes: {
+                    customSceneId: {
+                        name: "customSceneId",
+                        ID: attrSceneId,
+                        type: 0x20,
+                        write: true,
+                        max: 0xff,
+                    },
+                    customGroupId: {
+                        name: "customGroupId",
+                        ID: attrGroupId,
+                        type: 0x21,
+                        write: true,
+                        max: 0xffff,
+                    },
+                },
+                commands: {},
+                commandsResponse: {},
+            }),
+            m.deviceEndpoints({endpoints: {"1": 1, "2": 2, "3": 3, "4": 4}}),
+            m.battery({
+                percentageReportingConfig: {min: 3600, max: 14400, change: 0},
+            }),
+            m.commandsOnOff({endpointNames: ["1", "2", "3", "4"]}),
+            localActionExtend({
+                endpointNames: ["1", "2", "3", "4"],
+                reporting: false,
+            }),
+            m.commandsLevelCtrl({endpointNames: ["1", "2", "3", "4"]}),
+            m.enumLookup({
+                name: "switch_actions",
+                endpointName: "1",
+                lookup: {off: 0, on: 1, toggle: 2},
+                cluster: "genOnOffSwitchCfg",
+                attribute: "switchActions",
+                description: "Actions switch",
+            }),
+            m.enumLookup({
+                name: "switch_actions",
+                endpointName: "2",
+                lookup: {off: 0, on: 1, toggle: 2},
+                cluster: "genOnOffSwitchCfg",
+                attribute: "switchActions",
+                description: "Actions switch",
+            }),
+            m.enumLookup({
+                name: "switch_actions",
+                endpointName: "3",
+                lookup: {off: 0, on: 1, toggle: 2},
+                cluster: "genOnOffSwitchCfg",
+                attribute: "switchActions",
+                description: "Actions switch",
+            }),
+            m.enumLookup({
+                name: "switch_actions",
+                endpointName: "4",
+                lookup: {off: 0, on: 1, toggle: 2},
+                cluster: "genOnOffSwitchCfg",
+                attribute: "switchActions",
+                description: "Actions switch",
+            }),
+            m.enumLookup<"genOnOffSwitchCfg", SlackyDiyOnOffCfg>({
+                name: "switch_type",
+                endpointName: "1",
+                lookup: {
+                    toggle: 0,
+                    momentary: 1,
+                    multifunction: 2,
+                    brightness_level: 3,
+                    brightness_level_up: 4,
+                    brightness_level_down: 5,
+                    scene: 6,
+                },
+                cluster: "genOnOffSwitchCfg",
+                attribute: "customSwitchType",
+                description: "Switch type",
+            }),
+            m.enumLookup<"genOnOffSwitchCfg", SlackyDiyOnOffCfg>({
+                name: "switch_type",
+                endpointName: "2",
+                lookup: {
+                    toggle: 0,
+                    momentary: 1,
+                    multifunction: 2,
+                    brightness_level: 3,
+                    brightness_level_up: 4,
+                    brightness_level_down: 5,
+                    scene: 6,
+                },
+                cluster: "genOnOffSwitchCfg",
+                attribute: "customSwitchType",
+                description: "Switch type",
+            }),
+            m.enumLookup<"genOnOffSwitchCfg", SlackyDiyOnOffCfg>({
+                name: "switch_type",
+                endpointName: "3",
+                lookup: {
+                    toggle: 0,
+                    momentary: 1,
+                    multifunction: 2,
+                    brightness_level: 3,
+                    brightness_level_up: 4,
+                    brightness_level_down: 5,
+                    scene: 6,
+                },
+                cluster: "genOnOffSwitchCfg",
+                attribute: "customSwitchType",
+                description: "Switch type",
+            }),
+            m.enumLookup<"genOnOffSwitchCfg", SlackyDiyOnOffCfg>({
+                name: "switch_type",
+                endpointName: "4",
+                lookup: {
+                    toggle: 0,
+                    momentary: 1,
+                    multifunction: 2,
+                    brightness_level: 3,
+                    brightness_level_up: 4,
+                    brightness_level_down: 5,
+                    scene: 6,
+                },
+                cluster: "genOnOffSwitchCfg",
+                attribute: "customSwitchType",
+                description: "Switch type",
+            }),
+            m.commandsScenes({endpointNames: ["1", "2", "3", "4"]}),
+            m.numeric<"genScenes", SlackyDiyScene>({
+                name: "scene_id",
+                endpointNames: ["1", "2", "3", "4"],
+                access: "ALL",
+                cluster: "genScenes",
+                attribute: "customSceneId",
+                valueMin: 0,
+                valueMax: 255,
+                description: "Scene ID",
+            }),
+            m.numeric<"genScenes", SlackyDiyScene>({
+                name: "group_id",
+                endpointNames: ["1", "2", "3", "4"],
+                access: "ALL",
+                cluster: "genScenes",
+                attribute: "customGroupId",
+                valueMin: 0,
+                valueMax: 65527,
+                description: "Group ID for scenes",
+            }),
+            m.numeric<"genLevelCtrl">({
+                name: "min_level",
+                endpointNames: ["1", "2", "3", "4"],
+                access: "ALL",
+                cluster: "genLevelCtrl",
+                attribute: "minLevel",
+                valueMin: 1,
+                valueMax: 255,
+                description: "Minimum level when decreasing",
+            }),
+            m.numeric<"genLevelCtrl">({
+                name: "max_level",
+                endpointNames: ["1", "2", "3", "4"],
+                access: "ALL",
+                cluster: "genLevelCtrl",
+                attribute: "maxLevel",
+                valueMin: 1,
+                valueMax: 255,
+                description: "Maximum level when increasing",
+            }),
+        ],
+        meta: {},
+        ota: true,
+    },
+    {
+        zigbeeModel: ["TS0046-z-SlD"],
+        model: "TS0046-z-SlD",
+        vendor: "Slacky-DIY",
+        description: "Tuya wireless switch with 6 buttons with custom firmware",
+        extend: [
+            m.deviceAddCustomCluster("genOnOffSwitchCfg", {
+                name: "genOnOffSwitchCfg",
+                ID: 0x0007,
+                attributes: {
+                    customSwitchType: {
+                        name: "customSwitchType",
+                        ID: attrSwitchType,
+                        type: 0x30,
+                        write: true,
+                        max: 0xff,
+                    },
+                    customDeviceModelNumber: {
+                        name: "customDeviceModelNumber",
+                        ID: attrDeviceModelNumber,
+                        type: 0x30,
+                        write: true,
+                        max: 0xff,
+                    },
+                },
+                commands: {},
+                commandsResponse: {},
+            }),
+            m.deviceAddCustomCluster("genLevelCtrl", {
+                name: "genLevelCtrl",
+                ID: 0x0008,
+                attributes: {
+                    minLevel: {
+                        name: "minLevel",
+                        ID: 0x0002,
+                        type: 0x20,
+                        write: true,
+                        max: 0xff,
+                    },
+                    maxLevel: {
+                        name: "maxLevel",
+                        ID: 0x0003,
+                        type: 0x20,
+                        write: true,
+                        max: 0xff,
+                    },
+                },
+                commands: {},
+                commandsResponse: {},
+            }),
+            m.deviceAddCustomCluster("genScenes", {
+                name: "genScenes",
+                ID: 0x0005,
+                attributes: {
+                    customSceneId: {
+                        name: "customSceneId",
+                        ID: attrSceneId,
+                        type: 0x20,
+                        write: true,
+                        max: 0xff,
+                    },
+                    customGroupId: {
+                        name: "customGroupId",
+                        ID: attrGroupId,
+                        type: 0x21,
+                        write: true,
+                        max: 0xffff,
+                    },
+                },
+                commands: {},
+                commandsResponse: {},
+            }),
+            m.deviceEndpoints({endpoints: {"1": 1, "2": 2, "3": 3, "4": 4, "5": 5, "6": 6}}),
+            m.battery({
+                percentageReportingConfig: {min: 3600, max: 14400, change: 0},
+            }),
+            m.commandsOnOff({endpointNames: ["1", "2", "3", "4", "5", "6"]}),
+            localActionExtend({
+                endpointNames: ["1", "2", "3", "4", "5", "6"],
+                reporting: false,
+            }),
+            m.commandsLevelCtrl({endpointNames: ["1", "2", "3", "4", "5", "6"]}),
+            m.enumLookup({
+                name: "switch_actions",
+                endpointName: "1",
+                lookup: {off: 0, on: 1, toggle: 2},
+                cluster: "genOnOffSwitchCfg",
+                attribute: "switchActions",
+                description: "Actions switch",
+            }),
+            m.enumLookup({
+                name: "switch_actions",
+                endpointName: "2",
+                lookup: {off: 0, on: 1, toggle: 2},
+                cluster: "genOnOffSwitchCfg",
+                attribute: "switchActions",
+                description: "Actions switch",
+            }),
+            m.enumLookup({
+                name: "switch_actions",
+                endpointName: "3",
+                lookup: {off: 0, on: 1, toggle: 2},
+                cluster: "genOnOffSwitchCfg",
+                attribute: "switchActions",
+                description: "Actions switch",
+            }),
+            m.enumLookup({
+                name: "switch_actions",
+                endpointName: "4",
+                lookup: {off: 0, on: 1, toggle: 2},
+                cluster: "genOnOffSwitchCfg",
+                attribute: "switchActions",
+                description: "Actions switch",
+            }),
+            m.enumLookup({
+                name: "switch_actions",
+                endpointName: "5",
+                lookup: {off: 0, on: 1, toggle: 2},
+                cluster: "genOnOffSwitchCfg",
+                attribute: "switchActions",
+                description: "Actions switch",
+            }),
+            m.enumLookup({
+                name: "switch_actions",
+                endpointName: "6",
+                lookup: {off: 0, on: 1, toggle: 2},
+                cluster: "genOnOffSwitchCfg",
+                attribute: "switchActions",
+                description: "Actions switch",
+            }),
+            m.enumLookup<"genOnOffSwitchCfg", SlackyDiyOnOffCfg>({
+                name: "switch_type",
+                endpointName: "1",
+                lookup: {
+                    toggle: 0,
+                    momentary: 1,
+                    multifunction: 2,
+                    brightness_level: 3,
+                    brightness_level_up: 4,
+                    brightness_level_down: 5,
+                    scene: 6,
+                },
+                cluster: "genOnOffSwitchCfg",
+                attribute: "customSwitchType",
+                description: "Switch type",
+            }),
+            m.enumLookup<"genOnOffSwitchCfg", SlackyDiyOnOffCfg>({
+                name: "switch_type",
+                endpointName: "2",
+                lookup: {
+                    toggle: 0,
+                    momentary: 1,
+                    multifunction: 2,
+                    brightness_level: 3,
+                    brightness_level_up: 4,
+                    brightness_level_down: 5,
+                    scene: 6,
+                },
+                cluster: "genOnOffSwitchCfg",
+                attribute: "customSwitchType",
+                description: "Switch type",
+            }),
+            m.enumLookup<"genOnOffSwitchCfg", SlackyDiyOnOffCfg>({
+                name: "switch_type",
+                endpointName: "3",
+                lookup: {
+                    toggle: 0,
+                    momentary: 1,
+                    multifunction: 2,
+                    brightness_level: 3,
+                    brightness_level_up: 4,
+                    brightness_level_down: 5,
+                    scene: 6,
+                },
+                cluster: "genOnOffSwitchCfg",
+                attribute: "customSwitchType",
+                description: "Switch type",
+            }),
+            m.enumLookup<"genOnOffSwitchCfg", SlackyDiyOnOffCfg>({
+                name: "switch_type",
+                endpointName: "4",
+                lookup: {
+                    toggle: 0,
+                    momentary: 1,
+                    multifunction: 2,
+                    brightness_level: 3,
+                    brightness_level_up: 4,
+                    brightness_level_down: 5,
+                    scene: 6,
+                },
+                cluster: "genOnOffSwitchCfg",
+                attribute: "customSwitchType",
+                description: "Switch type",
+            }),
+            m.enumLookup<"genOnOffSwitchCfg", SlackyDiyOnOffCfg>({
+                name: "switch_type",
+                endpointName: "5",
+                lookup: {
+                    toggle: 0,
+                    momentary: 1,
+                    multifunction: 2,
+                    brightness_level: 3,
+                    brightness_level_up: 4,
+                    brightness_level_down: 5,
+                    scene: 6,
+                },
+                cluster: "genOnOffSwitchCfg",
+                attribute: "customSwitchType",
+                description: "Switch type",
+            }),
+            m.enumLookup<"genOnOffSwitchCfg", SlackyDiyOnOffCfg>({
+                name: "switch_type",
+                endpointName: "6",
+                lookup: {
+                    toggle: 0,
+                    momentary: 1,
+                    multifunction: 2,
+                    brightness_level: 3,
+                    brightness_level_up: 4,
+                    brightness_level_down: 5,
+                    scene: 6,
+                },
+                cluster: "genOnOffSwitchCfg",
+                attribute: "customSwitchType",
+                description: "Switch type",
+            }),
+            m.commandsScenes({endpointNames: ["1", "2", "3", "4", "5", "6"]}),
+            m.numeric<"genScenes", SlackyDiyScene>({
+                name: "scene_id",
+                endpointNames: ["1", "2", "3", "4", "5", "6"],
+                access: "ALL",
+                cluster: "genScenes",
+                attribute: "customSceneId",
+                valueMin: 0,
+                valueMax: 255,
+                description: "Scene ID",
+            }),
+            m.numeric<"genScenes", SlackyDiyScene>({
+                name: "group_id",
+                endpointNames: ["1", "2", "3", "4", "5", "6"],
+                access: "ALL",
+                cluster: "genScenes",
+                attribute: "customGroupId",
+                valueMin: 0,
+                valueMax: 65527,
+                description: "Group ID for scenes",
+            }),
+            m.numeric<"genLevelCtrl">({
+                name: "min_level",
+                endpointNames: ["1", "2", "3", "4", "5", "6"],
+                access: "ALL",
+                cluster: "genLevelCtrl",
+                attribute: "minLevel",
+                valueMin: 1,
+                valueMax: 255,
+                description: "Minimum level when decreasing",
+            }),
+            m.numeric<"genLevelCtrl">({
+                name: "max_level",
+                endpointNames: ["1", "2", "3", "4", "5", "6"],
+                access: "ALL",
+                cluster: "genLevelCtrl",
+                attribute: "maxLevel",
+                valueMin: 1,
+                valueMax: 255,
+                description: "Maximum level when increasing",
             }),
         ],
         meta: {},

@@ -1,4 +1,3 @@
-import * as fz from "../converters/fromZigbee";
 import * as exposes from "../lib/exposes";
 import * as legacy from "../lib/legacy";
 import * as tuya from "../lib/tuya";
@@ -20,11 +19,12 @@ export const definitions: DefinitionWithExtend[] = [
             "_TZE200_2cs6g9i7",
             "_TZE200_04yfvweb",
             "_TZE200_lrznf59v",
+            "_TZE204_woww89ip",
         ]),
         model: "GS361A-H04",
         vendor: "Siterwell",
         description: "Radiator valve with thermostat",
-        fromZigbee: [legacy.fz.tuya_thermostat, fz.ignore_basic_report],
+        fromZigbee: [legacy.fz.tuya_thermostat],
         meta: {
             tuyaThermostatSystemMode: legacy.thermostatSystemModes4,
             tuyaThermostatPreset: legacy.thermostatPresets,

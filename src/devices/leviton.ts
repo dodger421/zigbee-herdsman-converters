@@ -20,7 +20,7 @@ const fzLocal = {
                 return {[property]: currentLevel > 0 ? "ON" : "OFF"};
             }
         },
-    } satisfies Fz.Converter,
+    } satisfies Fz.Converter<"genLevelCtrl", undefined, ["attributeReport", "readResponse"]>,
 };
 
 export const definitions: DefinitionWithExtend[] = [
@@ -120,11 +120,7 @@ export const definitions: DefinitionWithExtend[] = [
         exposes: [
             // Note: ballast_power_on_level used to be here, but it doesn't appear to work properly with this device
             // If set, it's reset back to 0 when the device is turned off then back to 32 when turned on
-            e
-                .numeric("ballast_minimum_level", ea.ALL)
-                .withValueMin(1)
-                .withValueMax(254)
-                .withDescription("Specifies the minimum brightness value"),
+            e.numeric("ballast_minimum_level", ea.ALL).withValueMin(1).withValueMax(254).withDescription("Specifies the minimum brightness value"),
             e.numeric("ballast_maximum_level", ea.ALL).withValueMin(1).withValueMax(254).withDescription("Specifies the maximum brightness value"),
         ],
     },

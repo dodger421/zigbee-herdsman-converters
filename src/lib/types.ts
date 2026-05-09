@@ -1,5 +1,14 @@
 import type {Models as ZHModels} from "zigbee-herdsman";
-import type {Header as ZHZclHeader} from "zigbee-herdsman/dist/zspec/zcl";
+import type {
+    ClusterCommandKeys,
+    ClusterCommandResponseKeys,
+    ClusterOrRawAttributeKeys,
+    TCustomCluster,
+    TCustomClusterPayload,
+    ZigbeeOtaImageMeta,
+} from "zigbee-herdsman/dist/controller/tstype";
+import type {Header as ZHZclHeader, PowerSource as ZHZclPowerSource} from "zigbee-herdsman/dist/zspec/zcl";
+import type {TClusterAttributeKeys, TClusterPayload, TPartialClusterAttributes} from "zigbee-herdsman/dist/zspec/zcl/definition/clusters-types";
 import type {FrameControl} from "zigbee-herdsman/dist/zspec/zcl/definition/tstype";
 import type * as exposes from "./exposes";
 
@@ -11,6 +20,8 @@ export interface Logger {
 }
 
 export type Range = [number, number];
+export type ValuesOf<T> = T[keyof T];
+export type PowerSource = keyof typeof ZHZclPowerSource;
 export interface KeyValue {
     [s: string]: unknown;
 }
@@ -48,7 +59,7 @@ export interface Fingerprint {
     hardwareVersion?: number;
     manufacturerName?: string;
     modelID?: string;
-    powerSource?: "Battery" | "Mains (single phase)";
+    powerSource?: PowerSource;
     softwareBuildID?: string;
     stackVersion?: number;
     zclVersion?: number;
@@ -58,8 +69,8 @@ export interface Fingerprint {
     priority?: number;
 }
 export type WhiteLabel =
-    | {vendor: string; model: string; description: string; fingerprint: Fingerprint[]}
-    | {vendor: string; model: string; description?: string};
+    | {vendor?: string; model: string; description?: string; fingerprint: Fingerprint[]}
+    | {vendor?: string; model: string; description?: string; whiteLabelOf?: string};
 
 export interface MockProperty {
     property: string;
@@ -172,7 +183,13 @@ export interface DefinitionMeta {
      * @defaultValue false
      */
     turnsOffAtBrightness1?: boolean;
-    moveToLevelWithOnOffDisable?: boolean;
+    moveToLevelWithOnOffDisable?: boolean | ((entity: Zh.Endpoint) => boolean);
+    /**
+     * Omit optional optionsMask/optionsOverride parameters for devices with strict ZCL v1 compliance
+     *
+     * @defaultValue false
+     */
+    omitOptionalLevelParams?: boolean;
     tuyaThermostatPreset?: {[s: number]: string};
     /** Tuya specific thermostat options */
     tuyaThermostatSystemMode?: {[s: number]: string};
@@ -181,7 +198,7 @@ export interface DefinitionMeta {
     /**
      * see `toZigbee.light_color`
      *
-     * @defaultValue true
+     * @defaultValue false
      */
     supportsEnhancedHue?: boolean | ((entity: Zh.Endpoint) => boolean);
     /**
@@ -210,6 +227,10 @@ export interface DefinitionMeta {
      * Never use a transition when transitioning to off (even when specified)
      */
     noOffTransitionWhenOff?: boolean | ((entity: Zh.Endpoint) => boolean);
+    /**
+     * Manufacturer specific
+     */
+    sinopeAlternateBacklightAutoDim?: boolean;
 }
 
 export type Configure = (device: Zh.Device, coordinatorEndpoint: Zh.Endpoint, definition: Definition) => Promise<void> | void;
@@ -242,6 +263,7 @@ export interface ModernExtend {
 export type DummyDevice = {
     manufacturerName?: string;
     isDummyDevice: true;
+    applicationVersion?: number;
 };
 
 export type DefinitionExposesFunction = (device: Zh.Device | DummyDevice, options: KeyValue) => Expose[];
@@ -261,20 +283,33 @@ type DefinitionBase = {
 
 type DefinitionConfig = {
     endpoint?: (device: Zh.Device) => {[s: string]: number};
+    /**
+     * Semver version of the definition.
+     * Changing this from one ZHC version to another, informs the application that it should trigger specific behavior (migration-like):
+     * - major: reserved for future use
+     * - minor: reserved for future use
+     * - patch: the application should re-`configure` the device
+     */
+    version?: `0.0.${number}`;
     configure?: Configure;
     options?: Option[];
     meta?: DefinitionMeta;
     onEvent?: OnEvent.Handler;
-    ota?: boolean | Ota.ExtraMetas;
+    ota?:
+        | boolean
+        | (Pick<ZigbeeOtaImageMeta, "modelId" | "otaHeaderString" | "hardwareVersionMin" | "hardwareVersionMax"> & {
+              manufacturerName?: string;
+          });
 };
 
 type DefinitionFeatures = {
-    fromZigbee: Fz.Converter[];
+    // biome-ignore lint/suspicious/noExplicitAny: generic
+    fromZigbee: Fz.Converter<any, any, any>[];
     toZigbee: Tz.Converter[];
     exposes: DefinitionExposes;
 };
 
-export type Definition = DefinitionMatcher & DefinitionBase & DefinitionConfig & DefinitionFeatures;
+export type Definition = DefinitionMatcher & DefinitionBase & DefinitionConfig & DefinitionFeatures & Required<Pick<DefinitionConfig, "version">>;
 
 export type DefinitionWithExtend = DefinitionMatcher &
     DefinitionBase &
@@ -283,28 +318,108 @@ export type DefinitionWithExtend = DefinitionMatcher &
 
 export type ExternalDefinitionWithExtend = DefinitionWithExtend & {externalConverterName: string};
 
+export type ElementOf<T> = T extends readonly (infer U)[] ? U : T;
+
+/** TFoundationRepetitive from ZSpec Zcl mapped to names used by ZHC (TODO: refactor names to match ZSpec Zcl directly / breaking ext. conv) */
+export type TFoundationRepetitiveMapped =
+    | "read"
+    | "readResponse" // "readRsp"
+    | "write"
+    | "attributeReport"; // "report"
+
 export namespace Fz {
-    export interface Message {
-        // biome-ignore lint/suspicious/noExplicitAny: ignored using `--suppress`
-        data: any;
+    export type ConverterTypeCmd<Cl extends number | string, Custom extends TCustomCluster | undefined = undefined> =
+        | `command${Capitalize<ClusterCommandKeys<Cl, Custom>[number] & string>}` // exclude `number` with `& string`
+        | `command${Capitalize<ClusterCommandResponseKeys<Cl, Custom>[number] & string>}`; // exclude `number` with `& string`
+
+    type ConverterType<Cl extends number | string, Custom extends TCustomCluster | undefined = undefined> =
+        | "raw"
+        | TFoundationRepetitiveMapped
+        | ClusterOrRawAttributeKeys<Cl, Custom>[number]
+        | ConverterTypeCmd<Cl, Custom>;
+
+    type ConverterTypeStringOrArray<Cl extends number | string, Custom extends TCustomCluster | undefined = undefined> =
+        | ConverterType<Cl, Custom>
+        | readonly ConverterType<Cl, Custom>[];
+
+    type MessageTypeDataMap<Cl extends string | number> = {
+        raw: Buffer;
+        read: (TClusterAttributeKeys<Cl>[number] | number)[];
+        readResponse: TPartialClusterAttributes<Cl>;
+        write: TPartialClusterAttributes<Cl>;
+        attributeReport: TPartialClusterAttributes<Cl>;
+    };
+    type MessageTypeCustomDataMap<Custom extends TCustomCluster> = {
+        raw: Buffer;
+        read: (keyof Custom["attributes"] | number)[];
+        readResponse: Partial<Custom["attributes"]>;
+        write: Partial<Custom["attributes"]>;
+        attributeReport: Partial<Custom["attributes"]>;
+    };
+
+    export interface Message<
+        Cl extends number | string,
+        Custom extends TCustomCluster | undefined = undefined,
+        Ty extends ConverterTypeStringOrArray<Cl, Custom> = ConverterTypeStringOrArray<Cl, Custom>,
+    > {
+        data: (ElementOf<Ty> extends infer Single
+            ? Custom extends undefined
+                ? Single extends keyof MessageTypeDataMap<Cl>
+                    ? MessageTypeDataMap<Cl>[Single]
+                    : Single extends string | number
+                      ? Single extends `command${infer Co}`
+                          ? TClusterPayload<Cl, Uncapitalize<Co>>
+                          : TClusterPayload<Cl, Single>
+                      : never
+                : Custom extends TCustomCluster
+                  ? Single extends keyof MessageTypeCustomDataMap<Custom>
+                      ? MessageTypeDataMap<Cl>[Single] extends never
+                          ? MessageTypeCustomDataMap<Custom>[Single] extends never
+                              ? Record<number, unknown>
+                              : MessageTypeCustomDataMap<Custom>[Single]
+                          : MessageTypeDataMap<Cl>[Single] & MessageTypeCustomDataMap<Custom>[Single]
+                      : Single extends string | number
+                        ? Single extends `command${infer Co}`
+                            ? TClusterPayload<Cl, Uncapitalize<Co>> extends never
+                                ? TCustomClusterPayload<Custom, Uncapitalize<Co>>
+                                : TClusterPayload<Cl, Uncapitalize<Co>> & TCustomClusterPayload<Custom, Uncapitalize<Co>>
+                            : TClusterPayload<Cl, Single> extends never
+                              ? TCustomClusterPayload<Custom, Single>
+                              : TClusterPayload<Cl, Single> & TCustomClusterPayload<Custom, Single>
+                        : never
+                  : never
+            : never) &
+            Record<number, unknown> /* XXX: too many customs not to have this as fallback */;
         endpoint: Zh.Endpoint;
         device: Zh.Device;
         meta: {zclTransactionSequenceNumber?: number; manufacturerCode?: number; frameControl?: FrameControl; rawData: Buffer};
         groupID: number;
-        type: string;
+        type: ElementOf<Ty>;
         cluster: string | number;
         linkquality: number;
     }
+
     export interface Meta {
         state: KeyValue;
         device: Zh.Device;
         deviceExposesChanged: () => void;
     }
-    export interface Converter {
-        cluster: string | number;
-        type: string[] | string;
+
+    export interface Converter<
+        Cl extends number | string,
+        Custom extends TCustomCluster | undefined = undefined,
+        Ty extends ConverterTypeStringOrArray<Cl, Custom> = ConverterTypeStringOrArray<Cl, Custom>,
+    > {
+        cluster: Cl;
+        type: Ty;
         options?: Option[] | ((definition: Definition) => Option[]);
-        convert: (model: Definition, msg: Message, publish: Publish, options: KeyValue, meta: Fz.Meta) => KeyValueAny | void | Promise<void>;
+        convert: (
+            model: Definition,
+            msg: Message<Cl, Custom, Ty>,
+            publish: Publish,
+            options: KeyValue,
+            meta: Fz.Meta,
+        ) => KeyValueAny | void | Promise<void>;
     }
 }
 
@@ -348,8 +463,15 @@ export namespace Tuya {
     export interface ValueConverterSingle {
         // biome-ignore lint/suspicious/noExplicitAny: value is validated on per-case basis
         to?: (value: any, meta?: Tz.Meta) => unknown;
-        // biome-ignore lint/suspicious/noExplicitAny: value is validated on per-case basis
-        from?: (value: any, meta?: Fz.Meta, options?: KeyValue, publish?: Publish, msg?: Fz.Message) => number | string | boolean | KeyValue | null;
+        from?: (
+            // biome-ignore lint/suspicious/noExplicitAny: value is validated on per-case basis
+            value: any,
+            meta?: Fz.Meta,
+            options?: KeyValue,
+            publish?: Publish,
+            // biome-ignore lint/suspicious/noExplicitAny: value is validated on per-case basis
+            msg?: Fz.Message<any>,
+        ) => number | string | boolean | KeyValue | KeyValue[] | null;
     }
     export interface MetaTuyaDataPointsMeta {
         skip?: (meta: Tz.Meta) => boolean;
@@ -357,83 +479,6 @@ export namespace Tuya {
     }
     export type MetaTuyaDataPointsSingle = [number, string, ValueConverterSingle, MetaTuyaDataPointsMeta?];
     export type MetaTuyaDataPoints = MetaTuyaDataPointsSingle[];
-}
-
-export namespace Ota {
-    export type OnProgress = (progress: number, remaining?: number) => void;
-
-    export interface Settings {
-        dataDir: string;
-        overrideIndexLocation?: string;
-        imageBlockResponseDelay?: number;
-        defaultMaximumDataSize?: number;
-    }
-
-    export interface UpdateAvailableResult {
-        available: boolean;
-        currentFileVersion: number;
-        otaFileVersion: number;
-    }
-    export interface Version {
-        imageType: number;
-        manufacturerCode: number;
-        fileVersion: number;
-    }
-    export interface ImageHeader {
-        otaUpgradeFileIdentifier: Buffer;
-        otaHeaderVersion: number;
-        otaHeaderLength: number;
-        otaHeaderFieldControl: number;
-        manufacturerCode: number;
-        imageType: number;
-        fileVersion: number;
-        zigbeeStackVersion: number;
-        otaHeaderString: string;
-        totalImageSize: number;
-        securityCredentialVersion?: number;
-        upgradeFileDestination?: Buffer;
-        minimumHardwareVersion?: number;
-        maximumHardwareVersion?: number;
-    }
-    export interface ImageElement {
-        tagID: number;
-        length: number;
-        data: Buffer;
-    }
-    export interface Image {
-        header: ImageHeader;
-        elements: ImageElement[];
-        raw: Buffer;
-    }
-    export interface ImageInfo {
-        imageType: ImageHeader["imageType"];
-        fileVersion: ImageHeader["fileVersion"];
-        manufacturerCode: ImageHeader["manufacturerCode"];
-        hardwareVersion?: number;
-    }
-    export interface ImageMeta {
-        fileVersion: ImageHeader["fileVersion"];
-        fileSize?: ImageHeader["totalImageSize"];
-        url: string;
-        force?: boolean;
-        sha512?: string;
-        otaHeaderString?: ImageHeader["otaHeaderString"];
-        hardwareVersionMin?: ImageHeader["minimumHardwareVersion"];
-        hardwareVersionMax?: ImageHeader["maximumHardwareVersion"];
-    }
-    export interface ZigbeeOTAImageMeta extends ImageInfo, ImageMeta {
-        fileName: string;
-        modelId?: string;
-        manufacturerName?: string[];
-        minFileVersion?: ImageHeader["fileVersion"];
-        maxFileVersion?: ImageHeader["fileVersion"];
-        originalUrl?: string;
-        releaseNotes?: string;
-    }
-    export type ExtraMetas = Pick<ZigbeeOTAImageMeta, "modelId" | "otaHeaderString" | "hardwareVersionMin" | "hardwareVersionMax"> & {
-        manufacturerName?: string;
-        suppressElementImageParseFailure?: boolean;
-    };
 }
 
 export namespace Reporting {

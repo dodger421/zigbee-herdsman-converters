@@ -5,37 +5,47 @@ import type {DefinitionWithExtend, Fz} from "../lib/types";
 
 const e = exposes.presets;
 
-const awox_remote_actions: Fz.Converter = {
-    cluster: "genOnOff", // The main cluster can be generic; 'type' and 'convert' are important here.
-    type: ["raw", "commandEnhancedMoveHue", "commandStepColorTemp"], // Limit types to messages we specifically handle
+// TODO: should split?
+const awox_color_ctrl: Fz.Converter<"lightingColorCtrl", undefined, ["raw", "commandEnhancedMoveHue", "commandStepColorTemp" /* TODO: unused? */]> = {
+    cluster: "lightingColorCtrl",
+    type: ["raw", "commandEnhancedMoveHue", "commandStepColorTemp" /* TODO: unused? */], // Limit types to messages we specifically handle
     convert: (model, msg, publish, options, meta) => {
         const payload = msg.data;
         let action = null;
 
-        if (msg.cluster === "lightingColorCtrl") {
-            if (msg.type === "raw") {
-                const colorByte = payload.data[4];
-                switch (colorByte) {
-                    case 0xd6:
-                        action = "color_blue";
-                        break;
-                    case 0xd4:
-                        action = "color_green";
-                        break;
-                    case 0xd2:
-                        action = "color_yellow";
-                        break;
-                    case 0xd0:
-                        action = "color_red";
-                        break;
-                }
-            } else if (msg.type === "commandEnhancedMoveHue") {
-                action = "light_movement";
+        if (msg.type === "raw") {
+            const colorByte = payload[4];
+            switch (colorByte) {
+                case 0xd6:
+                    action = "color_blue";
+                    break;
+                case 0xd4:
+                    action = "color_green";
+                    break;
+                case 0xd2:
+                    action = "color_yellow";
+                    break;
+                case 0xd0:
+                    action = "color_red";
+                    break;
             }
-            // DEVELOPER NOTE: 'commandStepColorTemp' is no longer handled here.
-            // It is handled by fz.command_step_color_temperature.
-            // NOTE: I've kept the raw for refresh as it was a specific case not handled by another converter.
-        } else if (msg.cluster === "genLevelCtrl" && msg.type === "raw" && payload.data && payload.data[1] === 0xdf) {
+        } else if (msg.type === "commandEnhancedMoveHue") {
+            action = "light_movement";
+        }
+
+        if (action) {
+            return {action: action};
+        }
+    },
+};
+const awox_level_ctrl: Fz.Converter<"genLevelCtrl", undefined, ["raw"]> = {
+    cluster: "genLevelCtrl",
+    type: ["raw"], // Limit types to messages we specifically handle
+    convert: (model, msg, publish, options, meta) => {
+        const payload = msg.data;
+        let action = null;
+
+        if (msg.type === "raw" && payload[1] === 0xdf) {
             action = "refresh"; // Unique "Refresh" button
         }
         // DEVELOPER NOTE: Handling for genOnOff, genLevelCtrl (step/move), and genScenes is removed
@@ -44,6 +54,14 @@ const awox_remote_actions: Fz.Converter = {
         if (action) {
             return {action: action};
         }
+    },
+};
+
+const awox_scenes_raw: Fz.Converter<"genScenes", undefined, ["raw"]> = {
+    cluster: "genScenes",
+    type: ["raw"],
+    convert: (model, msg, publish, options, meta) => {
+        return {action: `recall_${msg.data[msg.data.length - 1]}`};
     },
 };
 
@@ -56,12 +74,34 @@ export const definitions: DefinitionWithExtend[] = [
         extend: [m.light()],
     },
     {
-        zigbeeModel: ["TLSR82xx"],
-        model: "33951/33948",
+        fingerprint: [
+            {
+                type: "Router",
+                manufacturerName: "AwoX",
+                modelID: "TLSR82xx",
+                endpoints: [
+                    {ID: 1, profileID: 260, deviceID: 258},
+                    {ID: 3, profileID: 49152, deviceID: 258},
+                ],
+            },
+            {
+                type: "Router",
+                manufacturerName: "AwoX",
+                modelID: "TLSR82xx",
+                endpoints: [
+                    {ID: 1, profileID: 260, deviceID: 257},
+                    {ID: 3, profileID: 4751, deviceID: 257},
+                ],
+            },
+        ],
+        model: "AwoX-light",
         vendor: "AwoX",
-        description: "LED white",
+        description: "Generic light",
         extend: [m.light()],
-        whiteLabel: [{vendor: "EGLO", model: "12229"}],
+        whiteLabel: [
+            {vendor: "EGLO", model: "12229"},
+            {vendor: "EGLO", model: "12256"},
+        ],
     },
     {
         zigbeeModel: ["ERCU_Zm"],
@@ -94,7 +134,9 @@ export const definitions: DefinitionWithExtend[] = [
             fz.command_stop,
             fz.command_recall, // Now handled by fz.command_recall
             fz.command_step_color_temperature, // Now handled by fz.command_step_color_temperature
-            awox_remote_actions, // Always at the end to prioritize specific actions.
+            awox_color_ctrl, // Always at the end to prioritize specific actions.
+            awox_level_ctrl,
+            awox_scenes_raw,
         ],
         toZigbee: [],
         exposes: [
@@ -133,12 +175,13 @@ export const definitions: DefinitionWithExtend[] = [
                 // "color_temp_cold",
                 "light_movement", // This specific action is kept as it's handled by awox_remote_actions
                 "refresh", // This specific action is kept as it's handled by awox_remote_actions
-                "scene_1", // These actions are handled by fz.command_recall, not awox_remote_actions
-                "scene_2", // Same
+                "recall_1", // These actions are handled by fz.command_recall, not awox_remote_actions
+                "recall_2", // Same
             ]),
         ],
     },
     {
+        zigbeeModel: ["ESMLzm_c5_GU10"],
         fingerprint: [
             {
                 type: "Router",
@@ -280,5 +323,14 @@ export const definitions: DefinitionWithExtend[] = [
         description: "Connect-Z motion (PIR) sensor",
         extend: [m.battery(), m.occupancy(), m.commandsOnOff(), m.commandsLevelCtrl()],
         whiteLabel: [{vendor: "EGLO", model: "99106"}],
+    },
+    {
+        zigbeeModel: ["ERCU_WS_Zm"],
+        model: "ERCU_WS_Zm",
+        vendor: "AwoX",
+        description: "Connect-Z magnetic wall mountable light RCU",
+        extend: [m.deviceEndpoints({endpoints: {"1": 1, "3": 3}}), m.commandsOnOff(), m.commandsLevelCtrl(), m.commandsColorCtrl()],
+        meta: {multiEndpoint: true},
+        whiteLabel: [{vendor: "EGLO", model: "900116"}],
     },
 ];

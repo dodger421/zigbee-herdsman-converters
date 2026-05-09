@@ -30,7 +30,7 @@ export const definitions: DefinitionWithExtend[] = [
         model: "JZ-ZB-001",
         description: "Smart plug (without power monitoring)",
         vendor: "LELLKI",
-        extend: [tuya.modernExtend.tuyaOnOff({powerOutageMemory: true})],
+        extend: [tuya.modernExtend.tuyaBase(), tuya.modernExtend.tuyaOnOff({powerOutageMemory: true})],
         configure: async (device, coordinatorEndpoint) => {
             const endpoint = device.getEndpoint(1);
             await reporting.bind(endpoint, coordinatorEndpoint, ["genOnOff"]);
@@ -63,6 +63,7 @@ export const definitions: DefinitionWithExtend[] = [
         description: "Touch switch 1 gang (with power monitoring)",
         vendor: "LELLKI",
         extend: [
+            tuya.modernExtend.tuyaBase(),
             tuya.modernExtend.tuyaOnOff({powerOutageMemory: true, electricalMeasurements: true}),
             tuya.modernExtend.electricityMeasurementPoll(),
         ],
@@ -80,6 +81,7 @@ export const definitions: DefinitionWithExtend[] = [
         description: "Power socket EU (with power monitoring)",
         vendor: "LELLKI",
         extend: [
+            tuya.modernExtend.tuyaBase(),
             tuya.modernExtend.tuyaOnOff({powerOutageMemory: true, electricalMeasurements: true}),
             tuya.modernExtend.electricityMeasurementPoll(),
         ],
@@ -97,7 +99,7 @@ export const definitions: DefinitionWithExtend[] = [
         model: "WP30-EU",
         description: "Power cord 4 sockets EU (with power monitoring)",
         vendor: "LELLKI",
-        fromZigbee: [fz.on_off_force_multiendpoint, fz.electrical_measurement, fz.metering, fz.ignore_basic_report, tuya.fz.power_outage_memory],
+        fromZigbee: [fz.on_off_force_multiendpoint, fz.electrical_measurement, fz.metering, tuya.fz.power_outage_memory],
         toZigbee: [tz.on_off, tuya.tz.power_on_behavior_1],
         extend: [tuya.modernExtend.electricityMeasurementPoll()],
         configure: async (device, coordinatorEndpoint) => {

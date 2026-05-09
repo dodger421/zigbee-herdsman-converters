@@ -37,7 +37,12 @@ const tzLocal = {
         options: [exposes.options.transition()],
         convertSet: async (entity, key, value, meta) => {
             // Device doesn't support moveToLevelWithOnOff therefore this converter is needed.
-            await entity.command("genLevelCtrl", "moveToLevel", {level: Number(value), transtime: 0}, {disableDefaultResponse: true});
+            await entity.command(
+                "genLevelCtrl",
+                "moveToLevel",
+                {level: Number(value), transtime: 0, optionsMask: 0, optionsOverride: 0},
+                {disableDefaultResponse: true},
+            );
             return {state: {brightness: value}};
         },
         convertGet: async (entity, key, meta) => {
@@ -60,13 +65,11 @@ const distinct = <T>(input: T[], toKey: (input: T) => string): T[] => {
 const hexToBytes = (hex: string): number[] => {
     // Remove '0x' prefix if present
     if (hex.startsWith("0x")) {
-        // biome-ignore lint/style/noParameterAssign: ignored using `--suppress`
         hex = hex.slice(2);
     }
 
     // Ensure even length
     if (hex.length % 2 !== 0) {
-        // biome-ignore lint/style/noParameterAssign: ignored using `--suppress`
         hex = `0${hex}`;
     }
 
@@ -80,6 +83,7 @@ const hexToBytes = (hex: string): number[] => {
 };
 const clusterManuSpecifcOrviboSwitchRewiring = () => {
     return m.deviceAddCustomCluster("manuSpecificOrvibo", {
+        name: "manuSpecificOrvibo",
         ID: 0x0017,
         attributes: {},
         commands: {
@@ -91,12 +95,14 @@ const clusterManuSpecifcOrviboSwitchRewiring = () => {
                 // Where <RELAY_ID> is integer 1-4
                 // Where <ACTION> is 0 for OFF, 1 for ON, and 2 for TOGGLE
                 // Example for switch 3 toggling relay 2 for device with IEEE address 0x0131000029042388: {"data":[3,0,0,136,35,4,41,0,0,49,1,2,4,1,6,0,1,2]}
+                name: "setSwitchRelay",
                 ID: 0x00,
                 parameters: [{name: "data", type: Zcl.BuffaloZclDataType.BUFFER}],
             },
             clearSwitchAction: {
                 // This command can be used to clear any action particular switch was configured to execute
                 // Payload {"data":[<SWITCH_ID>,0,0]}
+                name: "clearSwitchAction",
                 ID: 0x02,
                 parameters: [{name: "data", type: Zcl.BuffaloZclDataType.BUFFER}],
             },
@@ -113,6 +119,7 @@ const clusterManuSpecifcOrviboSwitchRewiring = () => {
                 // COMMANDING RELAY AND RECALLING A SCENE
                 // It is possible to configure a switch to command a relay (see setSwitchRelay command) and recall a scene (this command). It is important to execute commands in the following order - clearSwitchAction, then setSwitchRelay and then setSwitchScene.
                 // This can be useful for a scenario where you have blinds motor set-up on relay 1 and 2, and would like to have switch 1 toggle relay 1, but turn off relay 2. You would command relay 1 with TOGGLE action and recall scene set-up for relay 2 to turn it off.
+                name: "setSwitchScene",
                 ID: 0x04,
                 parameters: [{name: "data", type: Zcl.BuffaloZclDataType.BUFFER}],
             },
@@ -123,9 +130,10 @@ const clusterManuSpecifcOrviboSwitchRewiring = () => {
 
 const clusterManuSpecificOrviboPowerOnBehavior = () => {
     return m.deviceAddCustomCluster("manuSpecificOrvibo2", {
+        name: "manuSpecificOrvibo2",
         ID: 0xff00,
         attributes: {
-            powerOnBehavior: {ID: 0x0001, type: Zcl.DataType.UINT8},
+            powerOnBehavior: {name: "powerOnBehavior", ID: 0x0001, type: Zcl.DataType.UINT8, write: true, max: 0xff},
         },
         commands: {},
         commandsResponse: {},
@@ -178,7 +186,7 @@ const orviboSwitchRewiring = (args: OrviboSwitchRewiringArgs): ModernExtend => {
     );
     const options: Option[] = [composite];
 
-    const fromZigbee: Fz.Converter[] = [
+    const fromZigbee = [
         {
             cluster: "genScenes",
             type: "commandRecall",
@@ -219,7 +227,7 @@ const orviboSwitchRewiring = (args: OrviboSwitchRewiringArgs): ModernExtend => {
                 }
                 return payload;
             },
-        },
+        } satisfies Fz.Converter<"genScenes", undefined, "commandRecall">,
     ];
 
     const onEvent: OnEvent.Handler[] = [
@@ -280,7 +288,7 @@ const orviboSwitchPowerOnBehavior = (): ModernExtend => {
     const powerOnLookup: {[k: number]: string} = {1: "off", 2: "previous"};
     const powerOnLookup2: {[k: string]: number} = {off: 1, previous: 2};
     const exposes: Expose[] = [e.power_on_behavior(["off", "previous"])];
-    const fromZigbee: Fz.Converter[] = [
+    const fromZigbee = [
         {
             cluster: "manuSpecificOrvibo2",
             type: ["readResponse"],
@@ -291,7 +299,7 @@ const orviboSwitchPowerOnBehavior = (): ModernExtend => {
                 }
                 return result;
             },
-        },
+        } satisfies Fz.Converter<"manuSpecificOrvibo2", Orvibo2, ["readResponse"]>,
     ];
     const toZigbee: Tz.Converter[] = [
         {
@@ -501,7 +509,7 @@ export const definitions: DefinitionWithExtend[] = [
         model: "W40CZ",
         vendor: "ORVIBO",
         description: "Smart curtain motor",
-        fromZigbee: [fz.curtain_position_analog_output, fz.cover_position_tilt, fz.ignore_basic_report],
+        fromZigbee: [fz.curtain_position_analog_output, fz.cover_position_tilt],
         toZigbee: [tz.cover_state, tz.cover_position_tilt],
         exposes: [e.cover_position()],
     },
@@ -510,7 +518,7 @@ export const definitions: DefinitionWithExtend[] = [
         model: "W45CZ",
         vendor: "ORVIBO",
         description: "Smart curtain motor",
-        fromZigbee: [fz.curtain_position_analog_output, fz.cover_position_tilt, fz.ignore_basic_report],
+        fromZigbee: [fz.curtain_position_analog_output, fz.cover_position_tilt],
         toZigbee: [tz.cover_state, tz.cover_position_tilt],
         exposes: [e.cover_position()],
     },

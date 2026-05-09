@@ -22,7 +22,7 @@ export function sengledLight(args?: m.LightArgs) {
 export function sengledSwitchAction(): ModernExtend {
     const exposes: Expose[] = [presets.action(["on", "up", "down", "off", "on_double", "on_long", "off_double", "off_long"])];
 
-    const fromZigbee: Fz.Converter[] = [
+    const fromZigbee = [
         {
             cluster: 64528,
             type: ["raw"],
@@ -49,7 +49,7 @@ export function sengledSwitchAction(): ModernExtend {
                 }
                 return {action: lookup[msg.data[5]]}; // Just output the data from the above lookup list
             },
-        },
+        } satisfies Fz.Converter<64528, undefined, ["raw"]>,
     ];
 
     return {exposes, fromZigbee, isModernExtend: true};
@@ -316,13 +316,14 @@ export const definitions: DefinitionWithExtend[] = [
             // https://github.com/Koenkk/zigbee-herdsman-converters/pull/8123
             m.electricityMeter({cluster: "metering", power: {min: 5}, energy: {min: 5}}),
             m.deviceAddCustomCluster("manuSpecificSengledMotionSensor", {
+                name: "manuSpecificSengledMotionSensor",
                 ID: 0xfc01,
                 manufacturerCode: Zcl.ManufacturerCode.SENGLED_CO_LTD,
                 attributes: {
-                    triggerCondition: {ID: 0x0000, type: Zcl.DataType.UINT8},
-                    enableAutoOnOff: {ID: 0x0001, type: Zcl.DataType.BOOLEAN},
-                    motionStatus: {ID: 0x0003, type: Zcl.DataType.UINT8},
-                    offDelay: {ID: 0x0004, type: Zcl.DataType.UINT16},
+                    triggerCondition: {name: "triggerCondition", ID: 0x0000, type: Zcl.DataType.UINT8, write: true, max: 0xff},
+                    enableAutoOnOff: {name: "enableAutoOnOff", ID: 0x0001, type: Zcl.DataType.BOOLEAN, write: true},
+                    motionStatus: {name: "motionStatus", ID: 0x0003, type: Zcl.DataType.UINT8, write: true, max: 0xff},
+                    offDelay: {name: "offDelay", ID: 0x0004, type: Zcl.DataType.UINT16, write: true, max: 0xffff},
                 },
                 commands: {},
                 commandsResponse: {},
@@ -350,7 +351,7 @@ export const definitions: DefinitionWithExtend[] = [
                 name: "motion_status",
                 cluster: "manuSpecificSengledMotionSensor",
                 attribute: "motionStatus",
-                reporting: {attribute: "motionStatus", min: "1_SECOND", max: "MAX", change: 1},
+                reporting: {min: "1_SECOND", max: "MAX", change: 1},
                 description: "Whether the PAR38 bulb has detected motion",
                 valueOn: [true, 0x01],
                 valueOff: [false, 0x00],
